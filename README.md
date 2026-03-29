@@ -48,7 +48,9 @@ type: custom:sjukjournal-card
 
 ## Lägga till fler personer
 
-Via Developer Tools → Tjänster:
+Klicka på **⚙ Hantera** i kortet och fyll i formuläret — ingen Developer Tools behövs.
+
+Alternativt via Developer Tools → Tjänster:
 
 ```yaml
 service: sjukjournal.add_person
@@ -57,6 +59,14 @@ data:
   birth_date: "2015-03-14"
   gender: male
 ```
+
+## Radera eller avaktivera en person
+
+I **⚙ Hantera** finns en 🗑-knapp per person med två val:
+- **Radera allt** — tar bort personen och all historik permanent
+- **Behåll historik** — avaktiverar personen (döljs från startsidan, historiken bevaras)
+
+En avaktiverad person visas gråad i Hantera med en ↩-knapp för återaktivering.
 
 ## Logga en mätning via automation
 
@@ -85,7 +95,7 @@ custom_components/sjukjournal/
   const.py           Konstanter och mättyper
   coordinator.py     DataUpdateCoordinator, cache
   sensor.py          HA sensor-entiteter
-  services.py        6 HA-tjänster
+  services.py        8 HA-tjänster
   storage.py         Lokal datalagring (HA Store)
   strings.json       Svenska UI-strängar
   translations/

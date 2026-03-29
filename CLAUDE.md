@@ -30,7 +30,7 @@ Data flows through four layers:
 
 3. **`sensor.py`** — Creates HA sensor entities that read from coordinator snapshots (no I/O). One integration creates ~12 sensors per person (temperature, pulse, blood_pressure, weight, height, bmi, waist, blood_glucose, spo2, pain, mood, last_medication). BMI is auto-calculated from weight + height. Temperature sensor includes `fever_status` attribute.
 
-4. **`services.py`** — Registers 6 HA services: `log_measurement`, `log_medication`, `add_symptom`, `add_person`, `delete_entry`, `get_summary`. All use voluptuous schemas for validation.
+4. **`services.py`** — Registers 8 HA services: `log_measurement`, `log_medication`, `add_symptom`, `add_person`, `delete_entry`, `get_summary`, `delete_person`, `activate_person`. All use voluptuous schemas for validation.
 
 `__init__.py` wires everything together on `async_setup_entry`. `config_flow.py` enforces single-instance setup and collects the first person's data.
 
@@ -39,7 +39,8 @@ Data flows through four layers:
 - **Single instance only**: `config_flow.py` returns `self.async_abort(reason="already_configured")` if an entry exists.
 - **Person UUID**: Each person gets a UUID assigned at creation. This UUID is exposed as `person_id` on sensor attributes and is required for service calls.
 - **`.storage/` is HA-managed**: Never manually edit `.storage/sjukjournal_data`; HA owns that file.
-- **Frontend is vanilla JS**: `sjukjournal-card.js` uses no build tools. ApexCharts is loaded dynamically from CDN (`cdn.jsdelivr.net/npm/apexcharts@3.45.2`).
+- **Frontend is vanilla JS**: `sjukjournal-card.js` uses no build tools. ApexCharts is loaded dynamically from CDN (`cdnjs.cloudflare.com/ajax/libs/apexcharts/3.45.2`).
+- **Person active flag**: Persons can be deactivated (`active: false`) via `delete_person` with `keep_history: true`. They are hidden from the home view but visible (greyed out) in the admin view. Reactivate with `activate_person`.
 
 ## Services Reference
 
@@ -64,10 +65,27 @@ sjukjournal.log_medication:
   route: oral
   skipped: false
 
+sjukjournal.add_symptom:
+  person_id: <uuid>
+  pain: 3                     # optional: NRS 0-10
+  mood: 4                     # optional: 1-5
+  tags: ["hosta", "snuva"]   # optional
+  note: ""                    # optional
+
 sjukjournal.delete_entry:
   person_id: <uuid>
-  entry_type: measurement     # measurement/medication/symptom/wellbeing
-  entry_id: <entry-uuid>
+  entry_id: <entry-uuid>      # deletes any measurement/medication/wellbeing entry
+
+sjukjournal.delete_person:
+  person_id: <uuid>
+  keep_history: false         # true = deactivate (hide), false = delete permanently
+
+sjukjournal.activate_person:
+  person_id: <uuid>           # reactivates a deactivated person
+
+sjukjournal.get_summary:
+  person_id: <uuid>
+  hours: 24                   # optional, default 24 (max 720)
 ```
 
 ## Measurement Types
