@@ -1,0 +1,94 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SjukJournal — Lägg till första person",
+        "description": "Ange namn på den första personen du vill logga hälsa för. Fler personer kan läggas till senare via tjänsten sjukjournal.add_person.",
+        "data": {
+          "person_name": "Namn",
+          "birth_date": "Födelsedatum (valfritt, ÅÅÅÅ-MM-DD)"
+        }
+      }
+    },
+    "error": {
+      "name_required": "Namn får inte vara tomt."
+    },
+    "abort": {
+      "already_configured": "SjukJournal är redan konfigurerat."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SjukJournal — Inställningar",
+        "description": "{info}"
+      }
+    }
+  },
+  "services": {
+    "log_measurement": {
+      "name": "Logga mätning",
+      "description": "Sparar en hälsomätning för en person.",
+      "fields": {
+        "person_id": { "name": "Person-ID", "description": "UUID för personen." },
+        "type": { "name": "Typ", "description": "Mättyp, t.ex. temperature, pulse, blood_pressure." },
+        "value": { "name": "Värde", "description": "Mätvärdet som tal." },
+        "value2": { "name": "Värde 2", "description": "Används för diastoliskt blodtryck." },
+        "unit": { "name": "Enhet", "description": "T.ex. °C, mmHg, kg." },
+        "timestamp": { "name": "Tidsstämpel", "description": "ISO 8601, lämna tomt för nu." },
+        "note": { "name": "Anteckning", "description": "Valfri fritext." }
+      }
+    },
+    "log_medication": {
+      "name": "Logga medicin",
+      "description": "Registrerar en medicindos för en person.",
+      "fields": {
+        "person_id": { "name": "Person-ID", "description": "UUID för personen." },
+        "medication": { "name": "Läkemedel", "description": "Namn på läkemedlet." },
+        "dose": { "name": "Dos", "description": "Numerisk dos." },
+        "dose_unit": { "name": "Enhet", "description": "T.ex. mg, ml, tablet." },
+        "route": { "name": "Administreringssätt", "description": "oral, inhalation, injection, topical, other." },
+        "timestamp": { "name": "Tidsstämpel", "description": "ISO 8601, lämna tomt för nu." },
+        "skipped": { "name": "Hoppade over", "description": "Sätt true om dosen hoppades över." },
+        "note": { "name": "Anteckning", "description": "Valfri fritext." }
+      }
+    },
+    "add_symptom": {
+      "name": "Logga välbefinnande",
+      "description": "Sparar smärtnivå, humör och symtomtaggar.",
+      "fields": {
+        "person_id": { "name": "Person-ID", "description": "UUID för personen." },
+        "pain": { "name": "Smärta (NRS)", "description": "Heltal 0–10." },
+        "mood": { "name": "Humör", "description": "Heltal 1–5." },
+        "tags": { "name": "Symtomtaggar", "description": "Lista med strängar, t.ex. ['hosta', 'snuva']." },
+        "note": { "name": "Anteckning", "description": "Valfri fritext." },
+        "timestamp": { "name": "Tidsstämpel", "description": "ISO 8601, lämna tomt för nu." }
+      }
+    },
+    "add_person": {
+      "name": "Lägg till person",
+      "description": "Skapar en ny person i SjukJournal och laddar om integrationen.",
+      "fields": {
+        "name": { "name": "Namn", "description": "Personens visningsnamn." },
+        "birth_date": { "name": "Födelsedatum", "description": "ÅÅÅÅ-MM-DD (valfritt)." },
+        "note": { "name": "Anteckning", "description": "Medicinska anteckningar (valfritt)." }
+      }
+    },
+    "delete_entry": {
+      "name": "Ta bort post",
+      "description": "Tar bort en enskild mätning, medicindos eller välbefinnande-post.",
+      "fields": {
+        "person_id": { "name": "Person-ID", "description": "UUID för personen." },
+        "entry_id": { "name": "Post-ID", "description": "UUID för posten som ska tas bort." }
+      }
+    },
+    "get_summary": {
+      "name": "Hämta sammanfattning",
+      "description": "Skapar en HA-notifiering med sammanfattning för en person.",
+      "fields": {
+        "person_id": { "name": "Person-ID", "description": "UUID för personen." },
+        "hours": { "name": "Antal timmar", "description": "Täck in senaste N timmar (standard 24)." }
+      }
+    }
+  }
+}

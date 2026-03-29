@@ -1,0 +1,219 @@
+log_measurement:
+  name: Logga mätning
+  description: Logga en hälsomätning för en person.
+  fields:
+    person_id:
+      name: Person-ID
+      description: UUID för personen (finns som attribut på sensorer).
+      required: true
+      example: "5ace5d6f-ddb6-495d-a5c0-f95661ba9c33"
+      selector:
+        text:
+    type:
+      name: Typ
+      description: Typ av mätning.
+      required: true
+      example: temperature
+      selector:
+        select:
+          options:
+            - temperature
+            - blood_pressure
+            - pulse
+            - weight
+            - height
+            - bmi
+            - waist
+            - blood_glucose
+            - spo2
+            - pain
+            - mood
+    value:
+      name: Värde
+      description: Mätvärde.
+      required: true
+      example: 37.5
+      selector:
+        number:
+          mode: box
+          step: 0.1
+    value2:
+      name: Värde 2
+      description: Andra värdet, t.ex. diastoliskt blodtryck.
+      required: false
+      example: 80
+      selector:
+        number:
+          mode: box
+    unit:
+      name: Enhet
+      description: Enhet för mätningen (t.ex. °C, mmHg, kg).
+      required: false
+      example: "°C"
+      selector:
+        text:
+    note:
+      name: Anteckning
+      description: Valfri anteckning.
+      required: false
+      selector:
+        text:
+    timestamp:
+      name: Tidstämpel
+      description: ISO 8601-tidstämpel (standard är nu).
+      required: false
+      example: "2024-03-01T08:30:00"
+      selector:
+        text:
+
+log_medication:
+  name: Logga medicin
+  description: Logga en medicindos för en person.
+  fields:
+    person_id:
+      name: Person-ID
+      required: true
+      selector:
+        text:
+    medication:
+      name: Medicin
+      description: Namn på medicinen.
+      required: true
+      example: Alvedon 500mg
+      selector:
+        text:
+    dose:
+      name: Dos
+      required: false
+      example: 500
+      selector:
+        number:
+          mode: box
+    dose_unit:
+      name: Dosenhet
+      required: false
+      example: mg
+      selector:
+        text:
+    route:
+      name: Administreringssätt
+      required: false
+      selector:
+        select:
+          options:
+            - oral
+            - inhalation
+            - injection
+            - topical
+            - other
+    skipped:
+      name: Hoppade över
+      description: Markera om dosen hoppades över.
+      required: false
+      selector:
+        boolean:
+    note:
+      name: Anteckning
+      required: false
+      selector:
+        text:
+
+add_symptom:
+  name: Lägg till symptom
+  description: Logga välmående, smärta och symptom för en person.
+  fields:
+    person_id:
+      name: Person-ID
+      required: true
+      selector:
+        text:
+    pain:
+      name: Smärtnivå
+      description: NRS 0–10.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 10
+          mode: slider
+    mood:
+      name: Humör
+      description: 1 (mycket dåligt) – 5 (mycket bra).
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 5
+          mode: slider
+    tags:
+      name: Symptomtaggar
+      description: Lista med symptom, t.ex. ["hosta", "feber"].
+      required: false
+      selector:
+        text:
+    note:
+      name: Anteckning
+      required: false
+      selector:
+        text:
+
+add_person:
+  name: Lägg till person
+  description: Lägg till en ny person i journalen.
+  fields:
+    name:
+      name: Namn
+      required: true
+      example: Anna
+      selector:
+        text:
+    birth_date:
+      name: Födelsedatum
+      required: false
+      example: "1990-01-15"
+      selector:
+        text:
+    gender:
+      name: Kön
+      required: false
+      selector:
+        select:
+          options:
+            - male
+            - female
+            - other
+
+delete_entry:
+  name: Radera post
+  description: Radera en specifik post (mätning, medicin, symptom).
+  fields:
+    person_id:
+      name: Person-ID
+      required: true
+      selector:
+        text:
+    entry_id:
+      name: Post-ID
+      required: true
+      selector:
+        text:
+
+get_summary:
+  name: Hämta sammanfattning
+  description: Visa en sammanfattning som HA-notis.
+  fields:
+    person_id:
+      name: Person-ID
+      required: true
+      selector:
+        text:
+    hours:
+      name: Antal timmar
+      description: Hur många timmar tillbaka sammanfattningen ska täcka (1–720).
+      required: false
+      example: 24
+      selector:
+        number:
+          min: 1
+          max: 720
+          mode: box
