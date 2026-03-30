@@ -80,6 +80,7 @@ const CSS = `
   :host {
     display: block;
     font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+    height: 650px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -103,8 +104,7 @@ const CSS = `
     color: var(--text);
     border-radius: 12px;
     overflow: hidden;
-    min-height: 600px;
-    max-height: 90vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
   }
@@ -237,8 +237,8 @@ const CSS = `
   }
   .tab-bar::-webkit-scrollbar { display: none; }
   .tab-btn {
-    padding: 10px 15px; border: none; background: none; cursor: pointer;
-    font-family: inherit; font-size: 12px; color: var(--muted);
+    padding: 10px 8px; border: none; background: none; cursor: pointer;
+    font-family: inherit; font-size: 11px; color: var(--muted);
     white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.15s;
   }
   .tab-btn.active { color: var(--teal); font-weight: 700; border-bottom-color: var(--teal); }
@@ -504,6 +504,7 @@ class SjukJournalCard extends HTMLElement {
       personId: null,
       tab: "overview",
       tempRange: "24h",
+      chartRange: "90d",
       showLabels: false,
       deleteConfirmPersonId: null,
       persons: [],
@@ -842,7 +843,9 @@ class SjukJournalCard extends HTMLElement {
 
       // Type chips
       const typeChips = el("div", { className: "chip-row", style: { marginBottom: "10px" } });
+      const skipInQuick = new Set(["height", "bmi"]);
       for (const [mtype, info] of Object.entries(MTYPE_LABELS)) {
+        if (skipInQuick.has(mtype)) continue;
         const chip = el("button", { className: `chip${mtype === activeType ? " active" : ""}`,
           onClick: () => { activeType = mtype; rebuild(); }
         }, `${info.icon} ${info.label}`);
@@ -1048,21 +1051,54 @@ class SjukJournalCard extends HTMLElement {
     // BMI chart
     frag.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "📈 Vikt — trend", this._labelToggle()),
+      el("div", { className: "chip-row", style: { marginBottom: "12px" } },
+        ...["30d", "90d", "365d"].map(r =>
+          el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
+            onClick: () => { this._state.chartRange = r; this._render(); }
+          }, r === "30d" ? "30 dagar" : r === "90d" ? "90 dagar" : "1 år")
+        )
+      ),
       el("div", { id: "chart-weight", style: { minHeight: "160px" } }),
     ));
 
     // Input forms
+    const lastW  = this._latestSensor(person, "weight")?.value ?? "";
+    const lastH  = this._latestSensor(person, "height")?.value ?? "";
+    const lastWa = this._latestSensor(person, "waist")?.value ?? "";
+    const lastBg = this._latestSensor(person, "blood_glucose")?.value ?? "";
+    const wIn   = el("input", { className: "field", placeholder: "70.5", type: "number", step: "0.1", value: lastW });
+    const hIn   = el("input", { className: "field", placeholder: "175",  type: "number", step: "0.5", value: lastH });
+    const waIn  = el("input", { className: "field", placeholder: "80",   type: "number", step: "0.5", value: lastWa });
+    const bgIn  = el("input", { className: "field", placeholder: "5.5",  type: "number", step: "0.1", value: lastBg });
     frag.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "Registrera kroppsmått"),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        this._inlineInput("Vikt (kg)", "weight", "kg", "70.5", "0.1", person),
-        this._inlineInput("Längd (cm)", "height", "cm", "175", "0.5", person),
+        el("div", {}, el("label", { className: "form-label" }, "Vikt (kg)"), wIn),
+        el("div", {}, el("label", { className: "form-label" }, "Längd (cm)"), hIn),
       ),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        this._inlineInput("Midjemått (cm)", "waist", "cm", "80", "0.5", person),
-        this._inlineInput("Blodsocker (mmol/L)", "blood_glucose", "mmol/L", "5.5", "0.1", person),
+        el("div", {}, el("label", { className: "form-label" }, "Midjemått (cm)"), waIn),
+        el("div", {}, el("label", { className: "form-label" }, "Blodsocker (mmol/L)"), bgIn),
       ),
       this._autoBMINote(person),
+      el("button", { className: "btn btn-primary", style: { marginTop: "10px" },
+        onClick: async () => {
+          const weight      = parseFloat(wIn.value);
+          const height      = parseFloat(hIn.value);
+          const waist       = parseFloat(waIn.value);
+          const bloodGlucose = parseFloat(bgIn.value);
+          let saved = false;
+          if (weight)      { await this._callService("log_measurement", { person_id: person.id, type: "weight",       value: weight,       unit: "kg" });      saved = true; }
+          if (height)      { await this._callService("log_measurement", { person_id: person.id, type: "height",       value: height,       unit: "cm" });      saved = true; }
+          if (waist)       { await this._callService("log_measurement", { person_id: person.id, type: "waist",        value: waist,        unit: "cm" });      saved = true; }
+          if (bloodGlucose){ await this._callService("log_measurement", { person_id: person.id, type: "blood_glucose",value: bloodGlucose, unit: "mmol/L" }); saved = true; }
+          if (weight || height) await this._tryAutoCalcBMI(person, weight ? "weight" : "height", weight || height);
+          if (saved) {
+            wIn.value = ""; hIn.value = ""; waIn.value = ""; bgIn.value = "";
+            this._showToast("Kroppsmått sparade ✓");
+          }
+        }
+      }, "Spara mätningar"),
     ));
 
     return frag;
@@ -1145,16 +1181,25 @@ class SjukJournalCard extends HTMLElement {
 
     frag.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "📈 Blodtryck & Puls — trend", this._labelToggle()),
+      el("div", { className: "chip-row", style: { marginBottom: "12px" } },
+        ...["30d", "90d", "365d"].map(r =>
+          el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
+            onClick: () => { this._state.chartRange = r; this._render(); }
+          }, r === "30d" ? "30 dagar" : r === "90d" ? "90 dagar" : "1 år")
+        )
+      ),
       el("div", { id: "chart-vital", style: { minHeight: "180px" } }),
     ));
 
     // Input
+    const lastBP  = this._latestSensor(person, "blood_pressure");
+    const lastPuls = this._latestSensor(person, "pulse");
     frag.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "Registrera vitala"),
       el("div", { className: "form-row form-row-3", style: { marginBottom: "12px" } },
-        this._numericGroup("Systoliskt", "bp-sys", "120"),
-        this._numericGroup("Diastoliskt", "bp-dia", "80"),
-        this._numericGroup("Puls", "bp-puls", "72"),
+        this._numericGroup("Systoliskt", "bp-sys", "120", lastBP?.value ?? ""),
+        this._numericGroup("Diastoliskt", "bp-dia", "80",  lastBP?.diastolic ?? ""),
+        this._numericGroup("Puls",        "bp-puls", "72", lastPuls?.value ?? ""),
       ),
       el("button", { className: "btn btn-primary",
         onClick: async () => {
@@ -1172,21 +1217,20 @@ class SjukJournalCard extends HTMLElement {
               person_id: person.id, type: "pulse", value: puls, unit: "slag/min",
             });
           }
-          this._showToast("Vitala parametrar sparade ✓");
+          this._showToast("Blodtryck & puls sparade ✓");
         }
-      }, "Spara mätning"),
-      el("div", { style: { fontSize: "11px", color: "var(--muted)", marginTop: "10px", textAlign: "center" } },
-        "SpO2 sparas separat under Snabbregistrering"
-      ),
+      }, "Spara BT & puls"),
+      el("div", { style: { height: "12px" } }),
+      this._inlineInput("SpO2 (%)", "spo2", "%", "98", "1", person),
     ));
 
     return frag;
   }
 
-  _numericGroup(label, id, placeholder) {
+  _numericGroup(label, id, placeholder, value = "") {
     return el("div", {},
       el("label", { className: "form-label" }, label),
-      el("input", { className: "field", id, placeholder, type: "number", style: { textAlign: "center" } }),
+      el("input", { className: "field", id, placeholder, type: "number", style: { textAlign: "center" }, value }),
     );
   }
 
@@ -1398,7 +1442,14 @@ class SjukJournalCard extends HTMLElement {
     const recent = (person.wellbeing || []).slice(-14).reverse();
     if (recent.length > 0) {
       frag.appendChild(el("div", { className: "card" },
-        el("div", { className: "card-title" }, "📊 Smärta & humör — senaste 14 poster"),
+        el("div", { className: "card-title" }, "📊 Smärta & humör", this._labelToggle()),
+        el("div", { className: "chip-row", style: { marginBottom: "12px" } },
+          ...["30d", "90d", "365d"].map(r =>
+            el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
+              onClick: () => { this._state.chartRange = r; this._render(); }
+            }, r === "30d" ? "30 dagar" : r === "90d" ? "90 dagar" : "1 år")
+          )
+        ),
         el("div", { id: "chart-wellbeing", style: { minHeight: "160px" } }),
       ));
     }
@@ -1628,7 +1679,7 @@ class SjukJournalCard extends HTMLElement {
         xaxis: meds.map(m => ({
           x: toChartMs(m.timestamp),
           borderColor: "#17B8A6", strokeDashArray: 4, borderWidth: 1.5,
-          label: { text: `💊 ${m.name}`, position: "bottom",
+          label: { text: this._state.showLabels ? `💊 ${m.name}` : "💊", position: "bottom",
             style: { background: "#1C2733", color: "#17B8A6", fontSize: "9px" } },
         })),
       };
@@ -1660,7 +1711,8 @@ class SjukJournalCard extends HTMLElement {
     }
 
     if (tab === "body") {
-      const series = this._measurementSeries(person, "weight", 24 * 90);
+      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRange] ?? 24 * 90;
+      const series = this._measurementSeries(person, "weight", chartHours);
       await this._renderChart("chart-weight", {
         ...apexDefaults(160),
         chart: { ...apexDefaults().chart, type: "line", height: 160 },
@@ -1682,17 +1734,20 @@ class SjukJournalCard extends HTMLElement {
     }
 
     if (tab === "vital") {
-      const sysSeries  = this._measurementSeries(person, "blood_pressure", 24 * 7);
-      const pulsSeries = this._measurementSeries(person, "pulse", 24 * 7);
+      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRange] ?? 24 * 90;
+      const sysSeries  = this._measurementSeries(person, "blood_pressure", chartHours);
+      const diaSeries  = this._measurementSeries(person, "blood_pressure", chartHours, true);
+      const pulsSeries = this._measurementSeries(person, "pulse", chartHours);
       await this._renderChart("chart-vital", {
         ...apexDefaults(180),
         chart: { ...apexDefaults().chart, type: "line", height: 180 },
         series: [
           { name: "Systoliskt", data: sysSeries },
+          { name: "Diastoliskt", data: diaSeries },
           { name: "Puls", data: pulsSeries },
         ],
-        colors: ["#F56565", "#ECC94B"],
-        stroke: { curve: "smooth", width: [2.5, 2], dashArray: [0, 4] },
+        colors: ["#F56565", "#FC8181", "#ECC94B"],
+        stroke: { curve: "smooth", width: [2.5, 2, 2], dashArray: [0, 4, 6] },
         markers: { size: 3, strokeColors: "#141B24", strokeWidth: 2 },
         dataLabels: { enabled: this._state.showLabels,
           formatter: v => v != null ? Math.round(v).toString() : "",
@@ -1708,7 +1763,11 @@ class SjukJournalCard extends HTMLElement {
 
     if (tab === "wellbeing") {
       const person2 = this._getPerson(this._state.personId);
-      const wb = (person2?.wellbeing || []).slice(-14).reverse();
+      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRange] ?? 24 * 90;
+      const cutoff = Date.now() - chartHours * 3600 * 1000;
+      const wb = (person2?.wellbeing || [])
+        .filter(w => new Date(w.timestamp).getTime() >= cutoff)
+        .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       if (wb.length > 0) {
         await this._renderChart("chart-wellbeing", {
           ...apexDefaults(160),
@@ -1719,6 +1778,10 @@ class SjukJournalCard extends HTMLElement {
           ],
           colors: ["#ECC94B", "#17B8A6"],
           plotOptions: { bar: { borderRadius: 4, columnWidth: "60%" } },
+          dataLabels: { enabled: this._state.showLabels,
+            formatter: v => v != null ? Math.round(v).toString() : "",
+            style: { fontSize: "10px", colors: ["#1a1a1a"] },
+            background: { enabled: true, fillColor: "#d4d4d4", borderRadius: 3, borderWidth: 0, opacity: 0.9 } },
           xaxis: { ...apexDefaults().xaxis,
             categories: wb.map(w => fmtDate(w.timestamp, this._hass)) },
           yaxis: { ...apexDefaults().yaxis, min: 0, max: 10 },
