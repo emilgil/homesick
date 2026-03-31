@@ -18,7 +18,7 @@
  *   │   ├─ tabOverview()   — overview + temperature chart
  *   │   ├─ tabTemp()       — temperatur + inmatning
  *   │   ├─ tabBody()       — weight, height, BMI, waist, blood glucose
- *   │   ├─ tabVital()      — BT, puls, SpO2
+ *   │   ├─ tabVital()      — BP, pulse, SpO2
  *   │   ├─ tabMed()        — medicinlogg + inmatning
  *   │   └─ tabWellbeing()  — pain, mood, symptom tags
  *   └─ renderAdmin()       — add / edit people
@@ -805,7 +805,7 @@ class HomeSickCard extends HTMLElement {
 
     const topbar = el("div", { className: "sj-topbar" },
       el("div", {},
-        el("img", { src: "/local/homesick/logo_with_text.png", style: { height: "28px", display: "block" }, alt: "HomeSick" }),
+        el("div", { className: "sj-title" }, "🌡 HomeSick"),
         el("div", { className: "sj-subtitle" }, today),
       ),
       el("button", { className: "btn btn-ghost", onClick: () => this._openAdmin() }, "⚙ Manage"),
@@ -855,7 +855,7 @@ class HomeSickCard extends HTMLElement {
         ),
         el("div", { className: "person-temp" },
           el("div", { className: "temp-big", style: { color: sc } }, temp ? `${temp}°` : "—"),
-          el("div", { className: "temp-time" }, tempData ? `kl ${fmtTs(tempData.timestamp, this._hass)}` : ""),
+          el("div", { className: "temp-time" }, tempData ? `${fmtTs(tempData.timestamp, this._hass)}` : ""),
           el("div", { className: "status-pill", style: { background: `${sc}20`, color: sc } }, statusLabel(temp)),
         ),
       )
@@ -967,7 +967,6 @@ class HomeSickCard extends HTMLElement {
 
     const header = el("div", { className: "journal-header" },
       el("button", { className: "btn-back", onClick: () => this._goHome() }, "←"),
-      el("img", { src: "/local/homesick/logo.png", style: { height: "22px", opacity: "0.85" }, alt: "" }),
       this._renderAvatar(person, 42),
       el("div", {},
         el("div", { style: { fontWeight: 800, fontSize: "17px" } }, person.name),
@@ -988,9 +987,9 @@ class HomeSickCard extends HTMLElement {
     const tabs = [
       { id: "overview",   label: "📊 Overview" },
       { id: "temp",       label: "🌡 Temp" },
-      { id: "body",       label: "⚖️ Kropp" },
+      { id: "body",       label: "⚖️ Body" },
       { id: "vital",      label: "💉 Vitals" },
-      { id: "medication", label: "💊 Medicin" },
+      { id: "medication", label: "💊 Medication" },
       { id: "wellbeing",  label: "🌿 Wellbeing" },
     ];
 
@@ -1028,7 +1027,7 @@ class HomeSickCard extends HTMLElement {
       statGrid.appendChild(el("div", { className: "stat-card" },
         el("div", { className: "stat-label" }, s.label),
         el("div", { className: "stat-value", style: { color: d ? s.color : "var(--muted)" } }, d ? s.fmt(d.value) : "—"),
-        el("div", { className: "stat-unit" }, d ? `kl ${fmtTs(d.timestamp, this._hass)}` : "no data"),
+        el("div", { className: "stat-unit" }, d ? `${fmtTs(d.timestamp, this._hass)}` : "no data"),
       ));
     }
     frag.appendChild(statGrid);
@@ -1248,7 +1247,7 @@ class HomeSickCard extends HTMLElement {
     ));
 
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "📈 Blodtryck & Puls — trend", this._labelToggle()),
+      el("div", { className: "card-title" }, "📈 Blood pressure & pulse — trend", this._labelToggle()),
       el("div", { className: "chip-row", style: { marginBottom: "12px" } },
         ...["30d", "90d", "365d"].map(r =>
           el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
@@ -1285,7 +1284,7 @@ class HomeSickCard extends HTMLElement {
               person_id: person.id, type: "pulse", value: puls, unit: "bpm",
             });
           }
-          this._showToast("Blodtryck & puls saved ✓");
+          this._showToast("Blood pressure & pulse saved ✓");
         }
       }, "Save BP & pulse"),
       el("div", { style: { height: "12px" } }),
@@ -1345,7 +1344,7 @@ class HomeSickCard extends HTMLElement {
       ),
       el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Route"), routeSelect),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "12px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Klockslag"), timeInput),
+        el("div", {}, el("label", { className: "form-label" }, "Time"), timeInput),
         el("div", {}, el("label", { className: "form-label" }, "Anteckning"), noteInput),
       ),
       el("button", { className: "btn btn-primary",
@@ -1363,7 +1362,7 @@ class HomeSickCard extends HTMLElement {
             timestamp: ts,
             note: noteInput.value,
           });
-          this._showToast("Medicin registrerad ✓");
+          this._showToast("Medication logged ✓");
         }
       }, "💊 Registrera dos"),
     ));
@@ -1462,7 +1461,7 @@ class HomeSickCard extends HTMLElement {
     card.appendChild(el("div", { style: { marginTop: "14px" } }));
 
     // Symptom tags
-    const tagLabel = el("label", { className: "form-label" }, "Symtom");
+    const tagLabel = el("label", { className: "form-label" }, "Symptoms");
     const tagCloud = el("div", { className: "chip-row", style: { marginBottom: "10px" } });
     const renderTags = () => {
       tagCloud.innerHTML = "";
@@ -1530,12 +1529,9 @@ class HomeSickCard extends HTMLElement {
   _renderAdmin() {
     const topbar = el("div", { className: "sj-topbar" },
       el("button", { className: "btn-back", onClick: () => this._goHome() }, "←"),
-      el("div", { style: { display: "flex", alignItems: "center", gap: "10px" } },
-        el("img", { src: "/local/homesick/logo.png", style: { height: "22px", opacity: "0.85" }, alt: "" }),
-        el("div", {},
-          el("div", { className: "sj-title" }, "⚙ Manage people"),
-          el("div", { className: "sj-subtitle" }, `${this._state.persons.length} people`),
-        ),
+      el("div", {},
+        el("div", { className: "sj-title" }, "⚙ Manage people"),
+        el("div", { className: "sj-subtitle" }, `${this._state.persons.length} people`),
       ),
     );
 
