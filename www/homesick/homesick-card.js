@@ -805,10 +805,10 @@ class HomeSickCard extends HTMLElement {
 
     const topbar = el("div", { className: "sj-topbar" },
       el("div", {},
-        el("div", { className: "sj-title" }, "🩺 SjukJournal"),
+        el("img", { src: "/local/homesick/logo_with_text.png", style: { height: "28px", display: "block" }, alt: "HomeSick" }),
         el("div", { className: "sj-subtitle" }, today),
       ),
-      el("button", { className: "btn btn-ghost", onClick: () => this._openAdmin() }, "⚙ Hantera"),
+      el("button", { className: "btn btn-ghost", onClick: () => this._openAdmin() }, "⚙ Manage"),
     );
 
     const scroll = el("div", { className: "sj-scroll" });
@@ -967,6 +967,7 @@ class HomeSickCard extends HTMLElement {
 
     const header = el("div", { className: "journal-header" },
       el("button", { className: "btn-back", onClick: () => this._goHome() }, "←"),
+      el("img", { src: "/local/homesick/logo.png", style: { height: "22px", opacity: "0.85" }, alt: "" }),
       this._renderAvatar(person, 42),
       el("div", {},
         el("div", { style: { fontWeight: 800, fontSize: "17px" } }, person.name),
@@ -1529,9 +1530,12 @@ class HomeSickCard extends HTMLElement {
   _renderAdmin() {
     const topbar = el("div", { className: "sj-topbar" },
       el("button", { className: "btn-back", onClick: () => this._goHome() }, "←"),
-      el("div", {},
-        el("div", { className: "sj-title" }, "⚙ Manage people"),
-        el("div", { className: "sj-subtitle" }, `${this._state.persons.length} people`),
+      el("div", { style: { display: "flex", alignItems: "center", gap: "10px" } },
+        el("img", { src: "/local/homesick/logo.png", style: { height: "22px", opacity: "0.85" }, alt: "" }),
+        el("div", {},
+          el("div", { className: "sj-title" }, "⚙ Manage people"),
+          el("div", { className: "sj-subtitle" }, `${this._state.persons.length} people`),
+        ),
       ),
     );
 

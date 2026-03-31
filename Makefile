@@ -26,7 +26,7 @@ deploy-backend:
 
 deploy-frontend:
 	$(SSH) "mkdir -p /config/www/homesick"
-	$(SCP) www/homesick/homesick-card.js $(HA_USER)@$(HA_HOST):/config/www/homesick/
+	$(SCP) -r www/homesick/ $(HA_USER)@$(HA_HOST):/config/www/
 
 restart:
 	curl -s -o /dev/null -w 'HTTP %{http_code}\n' -X POST $(HA_API)/services/homeassistant/restart \
