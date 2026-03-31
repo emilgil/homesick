@@ -589,7 +589,7 @@ class HomeSickCard extends HTMLElement {
   async _loadPersons() {
     try {
       const data = await this._hass.callWS({
-        type: "sjukjournal/get_persons",
+        type: "homesick/get_persons",
       });
       this._state.persons = data || [];
     } catch (e) {
@@ -628,7 +628,7 @@ class HomeSickCard extends HTMLElement {
     // Load full measurement history for one person
     try {
       const data = await this._hass.callWS({
-        type: "sjukjournal/get_person_data",
+        type: "homesick/get_person_data",
         person_id: personId,
       });
       // Merge into persons array
