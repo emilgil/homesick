@@ -2,6 +2,19 @@
 
 HomeSick is a Home Assistant custom integration for family health journaling. Log temperatures, medications, vitals, body metrics and wellbeing for multiple people — all from a single Lovelace card.
 
+## ⚠️ Disclaimer
+
+**HomeSick is not a medical device and is not intended for clinical or diagnostic use.**
+
+- Data logged in HomeSick is stored locally in your Home Assistant instance and is accessible to **anyone with access to your Home Assistant installation** — including other users, integrations, and anyone on your local network who can reach the HA interface.
+- Do not use HomeSick as a substitute for professional medical advice, diagnosis, or treatment.
+- Do not rely on HomeSick data in medical emergencies. Always contact a qualified healthcare professional.
+- The developers accept no liability for decisions made based on data logged in this application.
+
+Use HomeSick for personal reference only.
+
+---
+
 ## Requirements
 - Home Assistant Core ≥ 2024.1
 - Lovelace in standard mode (not YAML-only)
