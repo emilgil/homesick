@@ -4,7 +4,7 @@ HomeSick is a Home Assistant custom integration for family health journaling. Lo
 
 ## ⚠️ Disclaimer
 
-**HomeSick is not a medical device and is not intended for clinical or diagnostic use.**
+**HomeSick is not a medical software system and is not intended for clinical or diagnostic use.**
 
 - Data logged in HomeSick is stored locally in your Home Assistant instance and is accessible to **anyone with access to your Home Assistant installation** — including other users, integrations, and anyone on your local network who can reach the HA interface.
 - Do not use HomeSick as a substitute for professional medical advice, diagnosis, or treatment.
