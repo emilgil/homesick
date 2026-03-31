@@ -468,7 +468,10 @@ function calcBMI(weightKg, heightCm) {
 // ── Unit system ───────────────────────────────────────────────────────────────
 
 function isImperial() {
-  return localStorage.getItem('homesick_units') === 'imperial';
+  const stored = localStorage.getItem('homesick_units');
+  if (stored !== null) return stored === 'imperial';
+  const lang = navigator.language || '';
+  return lang === 'en-US' || lang === 'en-LR' || lang === 'my';
 }
 
 function toDisplay(mtype, val) {
