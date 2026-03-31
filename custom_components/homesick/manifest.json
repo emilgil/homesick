@@ -1,0 +1,10 @@
+{
+  "domain": "homesick",
+  "name": "HomeSick",
+  "version": "1.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/emilgil/homesick",
+  "requirements": [],
+  "codeowners": [],
+  "iot_class": "local_push"
+}

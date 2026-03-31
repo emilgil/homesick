@@ -1,7 +1,7 @@
-"""Constants for SjukJournal."""
+"""Constants for HomeSick."""
 
-DOMAIN = "sjukjournal"
-STORAGE_KEY = "sjukjournal_data"
+DOMAIN = "homesick"
+STORAGE_KEY = "homesick_data"
 STORAGE_VERSION = 1
 
 # Measurement types

@@ -1,4 +1,4 @@
-"""SjukJournal DataUpdateCoordinator.
+"""HomeSick DataUpdateCoordinator.
 
 The coordinator is the single source of truth for all sensor entities.
 It holds a snapshot of the latest measurement per person per type,
@@ -21,7 +21,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, MEASUREMENT_TYPES
-from .storage import SjukJournalStore
+from .storage import HomeSickStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,20 +45,20 @@ class PersonSnapshot:
 
 
 @dataclass
-class SjukJournalData:
+class HomeSickData:
     """Full coordinator payload."""
 
     persons: dict[str, PersonSnapshot]  # keyed by person_id
 
 
-class SjukJournalCoordinator(DataUpdateCoordinator[SjukJournalData]):
-    """Coordinator for SjukJournal."""
+class HomeSickCoordinator(DataUpdateCoordinator[HomeSickData]):
+    """Coordinator for HomeSick."""
 
     def __init__(
         self,
         hass: HomeAssistant,
         config_entry: ConfigEntry,
-        store: SjukJournalStore,
+        store: HomeSickStore,
     ) -> None:
         self.store = store
 
@@ -70,7 +70,7 @@ class SjukJournalCoordinator(DataUpdateCoordinator[SjukJournalData]):
             update_method=self.async_update_data,
         )
 
-    async def async_update_data(self) -> SjukJournalData:
+    async def async_update_data(self) -> HomeSickData:
         """Rebuild PersonSnapshot objects from stored data.
 
         Called automatically every POLL_INTERVAL and also manually via
@@ -99,7 +99,7 @@ class SjukJournalCoordinator(DataUpdateCoordinator[SjukJournalData]):
 
             snapshots[pid] = snapshot
 
-        return SjukJournalData(persons=snapshots)
+        return HomeSickData(persons=snapshots)
 
     def get_snapshot(self, person_id: str) -> PersonSnapshot | None:
         """Return snapshot for a person, or None if coordinator has no data yet."""

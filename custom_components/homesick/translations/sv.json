@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "SjukJournal — Lägg till första person",
-        "description": "Ange namn på den första personen du vill logga hälsa för. Fler personer kan läggas till senare via tjänsten sjukjournal.add_person.",
+        "title": "HomeSick — Lägg till första person",
+        "description": "Ange namn på den första personen du vill logga hälsa för. Fler personer kan läggas till senare via tjänsten homesick.add_person.",
         "data": {
           "person_name": "Namn",
           "birth_date": "Födelsedatum (valfritt, ÅÅÅÅ-MM-DD)"
@@ -14,13 +14,13 @@
       "name_required": "Namn får inte vara tomt."
     },
     "abort": {
-      "already_configured": "SjukJournal är redan konfigurerat."
+      "already_configured": "HomeSick är redan konfigurerat."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "SjukJournal — Inställningar",
+        "title": "HomeSick — Inställningar",
         "description": "{info}"
       }
     }
@@ -49,7 +49,7 @@
         "dose_unit": { "name": "Enhet", "description": "T.ex. mg, ml, tablet." },
         "route": { "name": "Administreringssätt", "description": "oral, inhalation, injection, topical, other." },
         "timestamp": { "name": "Tidsstämpel", "description": "ISO 8601, lämna tomt för nu." },
-        "skipped": { "name": "Hoppade over", "description": "Sätt true om dosen hoppades över." },
+        "skipped": { "name": "Hoppade över", "description": "Sätt true om dosen hoppades över." },
         "note": { "name": "Anteckning", "description": "Valfri fritext." }
       }
     },
@@ -67,7 +67,7 @@
     },
     "add_person": {
       "name": "Lägg till person",
-      "description": "Skapar en ny person i SjukJournal och laddar om integrationen.",
+      "description": "Skapar en ny person i HomeSick och laddar om integrationen.",
       "fields": {
         "name": { "name": "Namn", "description": "Personens visningsnamn." },
         "birth_date": { "name": "Födelsedatum", "description": "ÅÅÅÅ-MM-DD (valfritt)." },

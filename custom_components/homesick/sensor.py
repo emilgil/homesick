@@ -1,12 +1,12 @@
-"""SjukJournal sensor platform.
+"""HomeSick sensor platform.
 
 One SensorEntity is created per person per measurement type.
 Each entity reads its value from the coordinator snapshot so there
 is never any I/O inside a property.
 
 Sensor naming convention:
-  sensor.sjukjournal_<person_slug>_<type>
-  e.g. sensor.sjukjournal_anna_temperature
+  sensor.homesick_<person_slug>_<type>
+  e.g. sensor.homesick_anna_temperature
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
-from . import SjukJournalConfigEntry
+from . import HomeSickConfigEntry
 from .const import (
     DOMAIN,
     MTYPE_BLOOD_GLUCOSE,
@@ -50,7 +50,7 @@ from .const import (
     TEMP_FEVER,
     TEMP_SUBFEVER,
 )
-from .coordinator import SjukJournalCoordinator
+from .coordinator import HomeSickCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,8 +60,8 @@ MMHG = "mmHg"
 
 
 @dataclass(frozen=True)
-class SjukJournalSensorDescription(SensorEntityDescription):
-    """Extends SensorEntityDescription with SjukJournal-specific fields."""
+class HomeSickSensorDescription(SensorEntityDescription):
+    """Extends SensorEntityDescription with HomeSick-specific fields."""
 
     mtype: str = ""
     # If True, also expose value2 (e.g. diastolic for blood pressure)
@@ -69,8 +69,8 @@ class SjukJournalSensorDescription(SensorEntityDescription):
     value2_name_suffix: str = ""
 
 
-SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
-    SjukJournalSensorDescription(
+SENSOR_DESCRIPTIONS: tuple[HomeSickSensorDescription, ...] = (
+    HomeSickSensorDescription(
         key=MTYPE_TEMPERATURE,
         mtype=MTYPE_TEMPERATURE,
         name="Temperatur",
@@ -79,7 +79,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_PULSE,
         mtype=MTYPE_PULSE,
         name="Puls",
@@ -87,7 +87,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:heart-pulse",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_BLOOD_PRESSURE,
         mtype=MTYPE_BLOOD_PRESSURE,
         name="Blodtryck systoliskt",
@@ -97,7 +97,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         has_value2=True,
         value2_name_suffix="diastoliskt",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_WEIGHT,
         mtype=MTYPE_WEIGHT,
         name="Vikt",
@@ -106,7 +106,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:scale",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_SPO2,
         mtype=MTYPE_SPO2,
         name="Syremättnad",
@@ -114,7 +114,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:percent",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_PAIN,
         mtype=MTYPE_PAIN,
         name="Smärtnivå",
@@ -122,7 +122,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:emoticon-sad-outline",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_MOOD,
         mtype=MTYPE_MOOD,
         name="Humör",
@@ -130,7 +130,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:emoticon-outline",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_BLOOD_GLUCOSE,
         mtype=MTYPE_BLOOD_GLUCOSE,
         name="Blodsocker",
@@ -139,7 +139,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:water-percent",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_HEIGHT,
         mtype=MTYPE_HEIGHT,
         name="Längd",
@@ -147,7 +147,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:human-male-height",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_BMI,
         mtype=MTYPE_BMI,
         name="BMI",
@@ -155,7 +155,7 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:human",
     ),
-    SjukJournalSensorDescription(
+    HomeSickSensorDescription(
         key=MTYPE_WAIST,
         mtype=MTYPE_WAIST,
         name="Midjemått",
@@ -168,23 +168,23 @@ SENSOR_DESCRIPTIONS: tuple[SjukJournalSensorDescription, ...] = (
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: SjukJournalConfigEntry,
+    config_entry: HomeSickConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up SjukJournal sensor platform."""
-    coordinator: SjukJournalCoordinator = config_entry.runtime_data.coordinator
+    """Set up HomeSick sensor platform."""
+    coordinator: HomeSickCoordinator = config_entry.runtime_data.coordinator
 
-    entities: list[SjukJournalSensor] = []
+    entities: list[HomeSickSensor] = []
 
     for person_id, snapshot in coordinator.data.persons.items():
         for description in SENSOR_DESCRIPTIONS:
             entities.append(
-                SjukJournalSensor(coordinator, person_id, description)
+                HomeSickSensor(coordinator, person_id, description)
             )
             # Also create a sensor for diastolic BP
             if description.has_value2:
                 entities.append(
-                    SjukJournalSensor(
+                    HomeSickSensor(
                         coordinator,
                         person_id,
                         description,
@@ -193,21 +193,21 @@ async def async_setup_entry(
                 )
 
         # One sensor for the last medication
-        entities.append(SjukJournalMedicationSensor(coordinator, person_id))
+        entities.append(HomeSickMedicationSensor(coordinator, person_id))
 
     async_add_entities(entities)
 
 
-class SjukJournalSensor(CoordinatorEntity[SjukJournalCoordinator], SensorEntity):
+class HomeSickSensor(CoordinatorEntity[HomeSickCoordinator], SensorEntity):
     """A measurement sensor for one person."""
 
-    entity_description: SjukJournalSensorDescription
+    entity_description: HomeSickSensorDescription
 
     def __init__(
         self,
-        coordinator: SjukJournalCoordinator,
+        coordinator: HomeSickCoordinator,
         person_id: str,
-        description: SjukJournalSensorDescription,
+        description: HomeSickSensorDescription,
         use_value2: bool = False,
     ) -> None:
         super().__init__(coordinator)
@@ -231,7 +231,7 @@ class SjukJournalSensor(CoordinatorEntity[SjukJournalCoordinator], SensorEntity)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, person_id)},
             name=coordinator.data.persons[person_id].name,
-            manufacturer="SjukJournal",
+            manufacturer="HomeSick",
             model="Hälsologg",
             sw_version="1.0.0",
         )
@@ -284,14 +284,14 @@ class SjukJournalSensor(CoordinatorEntity[SjukJournalCoordinator], SensorEntity)
         return attrs
 
 
-class SjukJournalMedicationSensor(
-    CoordinatorEntity[SjukJournalCoordinator], SensorEntity
+class HomeSickMedicationSensor(
+    CoordinatorEntity[HomeSickCoordinator], SensorEntity
 ):
     """Sensor showing the last logged medication for a person."""
 
     def __init__(
         self,
-        coordinator: SjukJournalCoordinator,
+        coordinator: HomeSickCoordinator,
         person_id: str,
     ) -> None:
         super().__init__(coordinator)

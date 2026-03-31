@@ -1,17 +1,17 @@
 log_measurement:
-  name: Logga mätning
-  description: Logga en hälsomätning för en person.
+  name: Log measurement
+  description: Log a health measurement for a person.
   fields:
     person_id:
-      name: Person-ID
-      description: UUID för personen (finns som attribut på sensorer).
+      name: Person ID
+      description: UUID of the person (available as attribute on sensors).
       required: true
       example: "5ace5d6f-ddb6-495d-a5c0-f95661ba9c33"
       selector:
         text:
     type:
-      name: Typ
-      description: Typ av mätning.
+      name: Type
+      description: Type of measurement.
       required: true
       example: temperature
       selector:
@@ -29,8 +29,8 @@ log_measurement:
             - pain
             - mood
     value:
-      name: Värde
-      description: Mätvärde.
+      name: Value
+      description: Measurement value.
       required: true
       example: 37.5
       selector:
@@ -38,65 +38,65 @@ log_measurement:
           mode: box
           step: 0.1
     value2:
-      name: Värde 2
-      description: Andra värdet, t.ex. diastoliskt blodtryck.
+      name: Value 2
+      description: Second value, e.g. diastolic blood pressure.
       required: false
       example: 80
       selector:
         number:
           mode: box
     unit:
-      name: Enhet
-      description: Enhet för mätningen (t.ex. °C, mmHg, kg).
+      name: Unit
+      description: Unit of measurement (e.g. °C, mmHg, kg).
       required: false
       example: "°C"
       selector:
         text:
     note:
-      name: Anteckning
-      description: Valfri anteckning.
+      name: Note
+      description: Optional note.
       required: false
       selector:
         text:
     timestamp:
-      name: Tidstämpel
-      description: ISO 8601-tidstämpel (standard är nu).
+      name: Timestamp
+      description: ISO 8601 timestamp (defaults to now).
       required: false
       example: "2024-03-01T08:30:00"
       selector:
         text:
 
 log_medication:
-  name: Logga medicin
-  description: Logga en medicindos för en person.
+  name: Log medication
+  description: Log a medication dose for a person.
   fields:
     person_id:
-      name: Person-ID
+      name: Person ID
       required: true
       selector:
         text:
     medication:
-      name: Medicin
-      description: Namn på medicinen.
+      name: Medication
+      description: Name of the medication.
       required: true
-      example: Alvedon 500mg
+      example: Ibuprofen 400mg
       selector:
         text:
     dose:
-      name: Dos
+      name: Dose
       required: false
-      example: 500
+      example: 400
       selector:
         number:
           mode: box
     dose_unit:
-      name: Dosenhet
+      name: Dose unit
       required: false
       example: mg
       selector:
         text:
     route:
-      name: Administreringssätt
+      name: Route
       required: false
       selector:
         select:
@@ -107,28 +107,28 @@ log_medication:
             - topical
             - other
     skipped:
-      name: Hoppade över
-      description: Markera om dosen hoppades över.
+      name: Skipped
+      description: Mark if the dose was skipped.
       required: false
       selector:
         boolean:
     note:
-      name: Anteckning
+      name: Note
       required: false
       selector:
         text:
 
 add_symptom:
-  name: Lägg till symptom
-  description: Logga välmående, smärta och symptom för en person.
+  name: Log wellbeing
+  description: Log wellbeing, pain and symptoms for a person.
   fields:
     person_id:
-      name: Person-ID
+      name: Person ID
       required: true
       selector:
         text:
     pain:
-      name: Smärtnivå
+      name: Pain level
       description: NRS 0–10.
       required: false
       selector:
@@ -137,8 +137,8 @@ add_symptom:
           max: 10
           mode: slider
     mood:
-      name: Humör
-      description: 1 (mycket dåligt) – 5 (mycket bra).
+      name: Mood
+      description: 1 (very bad) – 5 (very good).
       required: false
       selector:
         number:
@@ -146,35 +146,35 @@ add_symptom:
           max: 5
           mode: slider
     tags:
-      name: Symptomtaggar
-      description: Lista med symptom, t.ex. ["hosta", "feber"].
+      name: Symptom tags
+      description: List of symptoms, e.g. ["cough", "fever"].
       required: false
       selector:
         text:
     note:
-      name: Anteckning
+      name: Note
       required: false
       selector:
         text:
 
 add_person:
-  name: Lägg till person
-  description: Lägg till en ny person i journalen.
+  name: Add person
+  description: Add a new person to the journal.
   fields:
     name:
-      name: Namn
+      name: Name
       required: true
       example: Anna
       selector:
         text:
     birth_date:
-      name: Födelsedatum
+      name: Date of birth
       required: false
       example: "1990-01-15"
       selector:
         text:
     gender:
-      name: Kön
+      name: Gender
       required: false
       selector:
         select:
@@ -184,32 +184,32 @@ add_person:
             - other
 
 delete_entry:
-  name: Radera post
-  description: Radera en specifik post (mätning, medicin, symptom).
+  name: Delete entry
+  description: Delete a specific entry (measurement, medication, symptom).
   fields:
     person_id:
-      name: Person-ID
+      name: Person ID
       required: true
       selector:
         text:
     entry_id:
-      name: Post-ID
+      name: Entry ID
       required: true
       selector:
         text:
 
 get_summary:
-  name: Hämta sammanfattning
-  description: Visa en sammanfattning som HA-notis.
+  name: Get summary
+  description: Show a summary as an HA notification.
   fields:
     person_id:
-      name: Person-ID
+      name: Person ID
       required: true
       selector:
         text:
     hours:
-      name: Antal timmar
-      description: Hur många timmar tillbaka sammanfattningen ska täcka (1–720).
+      name: Hours
+      description: How many hours back the summary should cover (1–720).
       required: false
       example: 24
       selector:

@@ -1,10 +1,10 @@
-"""Config flow for SjukJournal.
+"""Config flow for HomeSick.
 
 Step 1 — user: enter name of the first person.
 Step 2 — done: config entry created, sensors registered.
 
 Adding more persons after installation is done via the
-sjukjournal.add_person service or directly in the Lovelace panel.
+homesick.add_person service or directly in the Lovelace panel.
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ STEP_USER_SCHEMA = vol.Schema(
 )
 
 
-class SjukJournalConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle the SjukJournal config flow."""
+class HomeSickConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle the HomeSick config flow."""
 
     VERSION = 1
 
@@ -52,7 +52,7 @@ class SjukJournalConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_PERSON_NAME] = "name_required"
             else:
                 return self.async_create_entry(
-                    title="SjukJournal",
+                    title="HomeSick",
                     data={
                         CONF_PERSON_NAME: name,
                         CONF_PERSON_BIRTH_DATE: user_input.get(CONF_PERSON_BIRTH_DATE),
@@ -65,17 +65,17 @@ class SjukJournalConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_USER_SCHEMA,
             errors=errors,
             description_placeholders={
-                "docs_url": "https://github.com/ditt-repo/sjukjournal"
+                "docs_url": "https://github.com/ditt-repo/homesick"
             },
         )
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return SjukJournalOptionsFlow(config_entry)
+        return HomeSickOptionsFlow(config_entry)
 
 
-class SjukJournalOptionsFlow(OptionsFlow):
+class HomeSickOptionsFlow(OptionsFlow):
     """Options flow — currently no configurable options.
 
     Placeholder so the 'Configure' button appears in the integration card.
@@ -96,8 +96,8 @@ class SjukJournalOptionsFlow(OptionsFlow):
             data_schema=vol.Schema({}),
             description_placeholders={
                 "info": (
-                    "Lägg till fler personer via tjänsten sjukjournal.add_person "
-                    "eller direkt i SjukJournal-panelen."
+                    "Lägg till fler personer via tjänsten homesick.add_person "
+                    "eller direkt i HomeSick-panelen."
                 )
             },
         )

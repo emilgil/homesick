@@ -1,9 +1,9 @@
-"""SjukJournal — Home Assistant integration.
+"""HomeSick — Home Assistant integration.
 
 Lifecycle:
   async_setup_entry   — called by HA when the config entry is loaded.
-    1. Creates SjukJournalStore
-    2. Creates SjukJournalCoordinator and does first refresh
+    1. Creates HomeSickStore
+    2. Creates HomeSickCoordinator and does first refresh
     3. Saves runtime_data on the config entry
     4. Forwards setup to the sensor platform
     5. Registers HA services
@@ -25,34 +25,34 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import CONF_PERSON_BIRTH_DATE, CONF_PERSON_GENDER, CONF_PERSON_NAME, DOMAIN
-from .coordinator import SjukJournalCoordinator
+from .coordinator import HomeSickCoordinator
 from .services import async_register_services
-from .storage import SjukJournalStore
+from .storage import HomeSickStore
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR]
 
-# Typed config entry so other modules can import SjukJournalConfigEntry
-type SjukJournalConfigEntry = ConfigEntry[SjukJournalRuntimeData]
+# Typed config entry so other modules can import HomeSickConfigEntry
+type HomeSickConfigEntry = ConfigEntry[HomeSickRuntimeData]
 
 
 @dataclass
-class SjukJournalRuntimeData:
+class HomeSickRuntimeData:
     """Objects that live for the lifetime of the config entry."""
 
-    coordinator: SjukJournalCoordinator
-    store: SjukJournalStore
+    coordinator: HomeSickCoordinator
+    store: HomeSickStore
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: SjukJournalConfigEntry,
+    entry: HomeSickConfigEntry,
 ) -> bool:
-    """Set up SjukJournal from a config entry."""
+    """Set up HomeSick from a config entry."""
 
     # 1. Storage
-    store = SjukJournalStore(hass)
+    store = HomeSickStore(hass)
 
     # 2. Add config_flow person if not already in storage (match by name)
     cf_name = entry.data.get(CONF_PERSON_NAME, "")
@@ -64,14 +64,14 @@ async def async_setup_entry(
             birth_date=entry.data.get(CONF_PERSON_BIRTH_DATE),
             gender=entry.data.get(CONF_PERSON_GENDER),
         )
-        _LOGGER.info("SjukJournal: created person '%s' from config flow", cf_name)
+        _LOGGER.info("HomeSick: created person '%s' from config flow", cf_name)
 
     # 3. Coordinator
-    coordinator = SjukJournalCoordinator(hass, entry, store)
+    coordinator = HomeSickCoordinator(hass, entry, store)
     await coordinator.async_config_entry_first_refresh()
 
     # 4. Store runtime data on the entry
-    entry.runtime_data = SjukJournalRuntimeData(
+    entry.runtime_data = HomeSickRuntimeData(
         coordinator=coordinator,
         store=store,
     )
@@ -88,11 +88,11 @@ async def async_setup_entry(
     # 8. Register Lovelace card resource
     await _async_register_lovelace_resource(hass)
 
-    _LOGGER.info("SjukJournal: setup complete")
+    _LOGGER.info("HomeSick: setup complete")
     return True
 
 
-@websocket_api.websocket_command({vol.Required("type"): "sjukjournal/get_persons"})
+@websocket_api.websocket_command({vol.Required("type"): "homesick/get_persons"})
 @websocket_api.async_response
 async def _ws_get_persons(
     hass: HomeAssistant,
@@ -100,7 +100,7 @@ async def _ws_get_persons(
     msg: dict,
 ) -> None:
     """Return all persons with full data."""
-    store: SjukJournalStore = connection.hass.data[DOMAIN]["store"]
+    store: HomeSickStore = connection.hass.data[DOMAIN]["store"]
     data = await store.async_load()
     persons = list(data.get("persons", {}).values())
 
@@ -143,7 +143,7 @@ async def _ws_get_persons(
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "sjukjournal/get_person_data",
+        vol.Required("type"): "homesick/get_person_data",
         vol.Required("person_id"): str,
     }
 )
@@ -154,7 +154,7 @@ async def _ws_get_person_data(
     msg: dict,
 ) -> None:
     """Return full data for a single person."""
-    store: SjukJournalStore = connection.hass.data[DOMAIN]["store"]
+    store: HomeSickStore = connection.hass.data[DOMAIN]["store"]
     data = await store.async_load()
     person = data.get("persons", {}).get(msg["person_id"])
     if person is None:
@@ -165,7 +165,7 @@ async def _ws_get_person_data(
     connection.send_result(msg["id"], person)
 
 
-def _async_register_websocket_api(hass: HomeAssistant, store: SjukJournalStore) -> None:
+def _async_register_websocket_api(hass: HomeAssistant, store: HomeSickStore) -> None:
     """Register WebSocket commands and expose store via hass.data."""
     hass.data.setdefault(DOMAIN, {})["store"] = store
     websocket_api.async_register_command(hass, _ws_get_persons)
@@ -179,7 +179,7 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
         (pathlib.Path(__file__).parent / "manifest.json").read_text()
     )
     card_version = _manifest.get("version", "1")
-    base = "/local/sjukjournal/sjukjournal-card.js"
+    base = "/local/homesick/homesick-card.js"
     url = f"{base}?v={card_version}"
     try:
         lovelace = hass.data.get("lovelace")
@@ -189,7 +189,7 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
         if resources is None:
             return
         existing = await resources.async_get_resources()
-        # Find any existing sjukjournal resource (any version)
+        # Find any existing homesick resource (any version)
         old = next((r for r in existing if r.get("url", "").split("?")[0] == base), None)
         if old:
             if old.get("url") != url:
@@ -197,17 +197,17 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
                 update_fn = getattr(resources, "async_update_resource", None) or getattr(resources, "async_update_item", None)
                 if update_fn:
                     await update_fn(old["id"], {"url": url, "res_type": "module"})
-                    _LOGGER.info("SjukJournal: updated Lovelace resource to %s", url)
+                    _LOGGER.info("HomeSick: updated Lovelace resource to %s", url)
         else:
             await resources.async_create_resource({"res_type": "module", "url": url})
-            _LOGGER.info("SjukJournal: Lovelace resource registered: %s", url)
+            _LOGGER.info("HomeSick: Lovelace resource registered: %s", url)
     except Exception as err:  # pylint: disable=broad-except
-        _LOGGER.debug("SjukJournal: could not auto-register Lovelace resource: %s", err)
+        _LOGGER.debug("HomeSick: could not auto-register Lovelace resource: %s", err)
 
 
 async def async_unload_entry(
     hass: HomeAssistant,
-    entry: SjukJournalConfigEntry,
+    entry: HomeSickConfigEntry,
 ) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -1,6 +1,6 @@
-"""Storage layer for SjukJournal.
+"""Storage layer for HomeSick.
 
-All data lives in .storage/sjukjournal_data as a single JSON document.
+All data lives in .storage/homesick_data as a single JSON document.
 No external database is required — HA's built-in Store handles persistence
 and is automatically included in HA snapshots/backups.
 
@@ -13,7 +13,7 @@ Data shape:
       "birth_date": "1983-05-12",   # optional, ISO date string
       "notes": "",
       "active": true,
-      "photo": "sjukjournal/images/anna.jpg",  # relative to /local/
+      "photo": "homesick/images/anna.jpg",  # relative to /local/
       "measurements": [
         {
           "id": "<uuid>",
@@ -77,8 +77,8 @@ def _make_id() -> str:
     return str(uuid4())
 
 
-class SjukJournalStore:
-    """Thin async wrapper around HA's Store for SjukJournal data."""
+class HomeSickStore:
+    """Thin async wrapper around HA's Store for HomeSick data."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
@@ -396,7 +396,7 @@ class SjukJournalStore:
     ) -> dict[str, Any]:
         """Return a summary dict for a person covering the last N hours.
 
-        Used by the sjukjournal.get_summary service.
+        Used by the homesick.get_summary service.
         """
         from datetime import timedelta
 

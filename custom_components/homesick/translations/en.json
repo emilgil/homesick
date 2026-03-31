@@ -1,0 +1,94 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HomeSick — Add first person",
+        "description": "Enter the name of the first person to track. More people can be added later via the homesick.add_person service.",
+        "data": {
+          "person_name": "Name",
+          "birth_date": "Date of birth (optional, YYYY-MM-DD)"
+        }
+      }
+    },
+    "error": {
+      "name_required": "Name cannot be empty."
+    },
+    "abort": {
+      "already_configured": "HomeSick is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HomeSick — Settings",
+        "description": "{info}"
+      }
+    }
+  },
+  "services": {
+    "log_measurement": {
+      "name": "Log measurement",
+      "description": "Saves a health measurement for a person.",
+      "fields": {
+        "person_id": { "name": "Person ID", "description": "UUID of the person." },
+        "type": { "name": "Type", "description": "Measurement type, e.g. temperature, pulse, blood_pressure." },
+        "value": { "name": "Value", "description": "The measurement value as a number." },
+        "value2": { "name": "Value 2", "description": "Used for diastolic blood pressure." },
+        "unit": { "name": "Unit", "description": "E.g. °C, mmHg, kg." },
+        "timestamp": { "name": "Timestamp", "description": "ISO 8601, leave empty for now." },
+        "note": { "name": "Note", "description": "Optional free text." }
+      }
+    },
+    "log_medication": {
+      "name": "Log medication",
+      "description": "Records a medication dose for a person.",
+      "fields": {
+        "person_id": { "name": "Person ID", "description": "UUID of the person." },
+        "medication": { "name": "Medication", "description": "Name of the medication." },
+        "dose": { "name": "Dose", "description": "Numeric dose." },
+        "dose_unit": { "name": "Unit", "description": "E.g. mg, ml, tablet." },
+        "route": { "name": "Route", "description": "oral, inhalation, injection, topical, other." },
+        "timestamp": { "name": "Timestamp", "description": "ISO 8601, leave empty for now." },
+        "skipped": { "name": "Skipped", "description": "Set true if the dose was skipped." },
+        "note": { "name": "Note", "description": "Optional free text." }
+      }
+    },
+    "add_symptom": {
+      "name": "Log wellbeing",
+      "description": "Saves pain level, mood and symptom tags.",
+      "fields": {
+        "person_id": { "name": "Person ID", "description": "UUID of the person." },
+        "pain": { "name": "Pain (NRS)", "description": "Integer 0–10." },
+        "mood": { "name": "Mood", "description": "Integer 1–5." },
+        "tags": { "name": "Symptom tags", "description": "List of strings, e.g. ['cough', 'runny nose']." },
+        "note": { "name": "Note", "description": "Optional free text." },
+        "timestamp": { "name": "Timestamp", "description": "ISO 8601, leave empty for now." }
+      }
+    },
+    "add_person": {
+      "name": "Add person",
+      "description": "Creates a new person in HomeSick and reloads the integration.",
+      "fields": {
+        "name": { "name": "Name", "description": "Display name of the person." },
+        "birth_date": { "name": "Date of birth", "description": "YYYY-MM-DD (optional)." },
+        "note": { "name": "Note", "description": "Medical notes (optional)." }
+      }
+    },
+    "delete_entry": {
+      "name": "Delete entry",
+      "description": "Deletes a single measurement, medication dose or wellbeing entry.",
+      "fields": {
+        "person_id": { "name": "Person ID", "description": "UUID of the person." },
+        "entry_id": { "name": "Entry ID", "description": "UUID of the entry to delete." }
+      }
+    },
+    "get_summary": {
+      "name": "Get summary",
+      "description": "Creates an HA notification with a summary for a person.",
+      "fields": {
+        "person_id": { "name": "Person ID", "description": "UUID of the person." },
+        "hours": { "name": "Hours", "description": "Cover the last N hours (default 24)." }
+      }
+    }
+  }
+}

@@ -1,13 +1,13 @@
-"""SjukJournal HA service registrations.
+"""HomeSick HA service registrations.
 
-Services exposed under the 'sjukjournal' domain:
+Services exposed under the 'homesick' domain:
 
-  sjukjournal.log_measurement   — log any measurement type
-  sjukjournal.log_medication    — log a medication dose
-  sjukjournal.add_symptom       — log a wellbeing/symptom entry
-  sjukjournal.add_person        — add a new person at runtime
-  sjukjournal.delete_entry      — delete any entry by id
-  sjukjournal.get_summary       — return a summary as a persistent notification
+  homesick.log_measurement   — log any measurement type
+  homesick.log_medication    — log a medication dose
+  homesick.add_symptom       — log a wellbeing/symptom entry
+  homesick.add_person        — add a new person at runtime
+  homesick.delete_entry      — delete any entry by id
+  homesick.get_summary       — return a summary as a persistent notification
 
 All write services call coordinator.async_request_refresh() afterwards so
 sensor states update immediately without waiting for the background poll.
@@ -24,8 +24,8 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, MEASUREMENT_TYPES
-from .coordinator import SjukJournalCoordinator
-from .storage import SjukJournalStore
+from .coordinator import HomeSickCoordinator
+from .storage import HomeSickStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,10 +116,10 @@ ACTIVATE_PERSON_SCHEMA = vol.Schema({
 
 async def async_register_services(
     hass: HomeAssistant,
-    coordinator: SjukJournalCoordinator,
-    store: SjukJournalStore,
+    coordinator: HomeSickCoordinator,
+    store: HomeSickStore,
 ) -> None:
-    """Register all SjukJournal services with HA."""
+    """Register all HomeSick services with HA."""
 
     async def handle_log_measurement(call: ServiceCall) -> None:
         data = call.data
@@ -248,9 +248,9 @@ async def async_register_services(
             "persistent_notification",
             "create",
             {
-                "title": f"SjukJournal — {summary.get('person_name', '')}",
+                "title": f"HomeSick — {summary.get('person_name', '')}",
                 "message": _format_summary(summary),
-                "notification_id": f"sjukjournal_summary_{data[ATTR_PERSON_ID]}",
+                "notification_id": f"homesick_summary_{data[ATTR_PERSON_ID]}",
             },
         )
 
@@ -279,7 +279,7 @@ async def async_register_services(
         DOMAIN, "activate_person", handle_activate_person, schema=ACTIVATE_PERSON_SCHEMA
     )
 
-    _LOGGER.debug("SjukJournal: registered 8 services")
+    _LOGGER.debug("HomeSick: registered 8 services")
 
 
 def _format_summary(summary: dict[str, Any]) -> str:

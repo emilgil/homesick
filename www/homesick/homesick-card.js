@@ -1,29 +1,29 @@
 /**
- * SjukJournal Lovelace Card
+ * HomeSick Lovelace Card
  *
- * Registrerar sig som custom element: <sjukjournal-card>
+ * Registrerar sig som custom element: <homesick-card>
  *
  * Konfiguration i Lovelace (YAML):
- *   type: custom:sjukjournal-card
+ *   type: custom:homesick-card
  *
  * Kommunikation med HA:
- *   - Läser personer och journaldata via REST API  (/api/sjukjournal/*)
- *   - Anropar tjänster via hass.callService()
- *   - Hämtar historik via HA History API
+ * - Reads people and journal data via REST API  (/api/homesick/*)
+ * - Calls services via hass.callService()
+ * - Fetches history via HA History API
  *
  * Struktur:
- *   SjukJournalCard        — root custom element, hanterar routing
+ *   HomeSickCard        — root custom element, hanterar routing
  *   ├─ renderHome()        — startsida med personkort
  *   ├─ renderJournal()     — journalsida per person
- *   │   ├─ tabOverview()   — översikt + temperaturkurva
+ *   │   ├─ tabOverview()   — overview + temperature chart
  *   │   ├─ tabTemp()       — temperatur + inmatning
- *   │   ├─ tabBody()       — vikt, längd, BMI, midjemått, blodsocker
+ *   │   ├─ tabBody()       — weight, height, BMI, waist, blood glucose
  *   │   ├─ tabVital()      — BT, puls, SpO2
  *   │   ├─ tabMed()        — medicinlogg + inmatning
- *   │   └─ tabWellbeing()  — smärta, humör, symtomtaggar
- *   └─ renderAdmin()       — lägg till / redigera personer
+ *   │   └─ tabWellbeing()  — pain, mood, symptom tags
+ *   └─ renderAdmin()       — add / edit people
  *
- * ApexCharts laddas dynamiskt från cdnjs om det inte redan finns.
+ * ApexCharts is loaded dynamically from cdnjs if not already present.
  */
 
 // ── ApexCharts loader ────────────────────────────────────────────────────────
@@ -43,35 +43,35 @@ async function ensureApex() {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const DOMAIN = "sjukjournal";
+const DOMAIN = "homesick";
 
 const MTYPE_LABELS = {
-  temperature:    { label: "Temperatur",   unit: "°C",     icon: "🌡" },
-  blood_pressure: { label: "Blodtryck",    unit: "mmHg",   icon: "💉" },
-  pulse:          { label: "Puls",         unit: "slag/min",icon: "💓" },
-  weight:         { label: "Vikt",         unit: "kg",      icon: "⚖️" },
+  temperature:    { label: "Temperature",   unit: "°C",     icon: "🌡" },
+  blood_pressure: { label: "Blood pressure",    unit: "mmHg",   icon: "💉" },
+  pulse:          { label: "Pulse",         unit: "bpm",icon: "💓" },
+  weight:         { label: "Weight",         unit: "kg",      icon: "⚖️" },
   spo2:           { label: "SpO2",         unit: "%",       icon: "🫁" },
-  pain:           { label: "Smärta",       unit: "/10",     icon: "😣" },
-  mood:           { label: "Humör",        unit: "/5",      icon: "😊" },
-  blood_glucose:  { label: "Blodsocker",   unit: "mmol/L",  icon: "🩸" },
-  height:         { label: "Längd",        unit: "cm",      icon: "📏" },
+  pain:           { label: "Pain",       unit: "/10",     icon: "😣" },
+  mood:           { label: "Mood",        unit: "/5",      icon: "😊" },
+  blood_glucose:  { label: "Blood glucose",   unit: "mmol/L",  icon: "🩸" },
+  height:         { label: "Height",        unit: "cm",      icon: "📏" },
   bmi:            { label: "BMI",          unit: "kg/m²",   icon: "🧍" },
-  waist:          { label: "Midjemått",    unit: "cm",      icon: "📐" },
+  waist:          { label: "Waist",    unit: "cm",      icon: "📐" },
 };
 
-const GENDER_LABELS = { male: "Man", female: "Kvinna", other: "Annat" };
+const GENDER_LABELS = { male: "Male", female: "Female", other: "Other" };
 
 const SYMPTOM_TAGS = [
-  "Hosta", "Ont i halsen", "Snuva", "Illamående", "Huvudvärk",
-  "Yrsel", "Frossa", "Ont i magen", "Trötthet", "Andningssvårigheter",
+  "Cough", "Sore throat", "Runny nose", "Nausea", "Headache",
+  "Dizziness", "Chills", "Stomach ache", "Fatigue", "Breathing difficulties",
 ];
 
 const ROUTES = [
-  { value: "oral",       label: "Oralt" },
+  { value: "oral",       label: "Oral" },
   { value: "inhalation", label: "Inhalation" },
-  { value: "injection",  label: "Injektion" },
-  { value: "topical",    label: "Topikal" },
-  { value: "other",      label: "Övrigt" },
+  { value: "injection",  label: "Injection" },
+  { value: "topical",    label: "Topical" },
+  { value: "other",      label: "Other" },
 ];
 
 // ── Theme ────────────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ const CSS = `
   :host {
     display: block;
     font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
-    height: 650px;
+    height: 800px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -454,8 +454,8 @@ function statusColor(temp) {
 
 function statusLabel(temp) {
   if (!temp) return "—";
-  if (temp >= 38.0) return "Feber";
-  if (temp >= 37.3) return "Subfebril";
+  if (temp >= 38.0) return "Fever";
+  if (temp >= 37.3) return "Subfever";
   return "Normal";
 }
 
@@ -493,7 +493,7 @@ function toChartMs(ts) {
 
 // ── Main custom element ───────────────────────────────────────────────────────
 
-class SjukJournalCard extends HTMLElement {
+class HomeSickCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -533,7 +533,7 @@ class SjukJournalCard extends HTMLElement {
   }
 
   static getConfigElement() {
-    return document.createElement("sjukjournal-card-editor");
+    return document.createElement("homesick-card-editor");
   }
 
   static getStubConfig() {
@@ -775,8 +775,8 @@ class SjukJournalCard extends HTMLElement {
     if (active.length === 0) {
       scroll.appendChild(el("div", { style: { textAlign: "center", color: "var(--muted)", padding: "40px 0" } },
         el("div", { style: { fontSize: "40px", marginBottom: "12px" } }, "🩺"),
-        el("div", {}, "Inga personer ännu."),
-        el("div", { style: { fontSize: "12px", marginTop: "6px" } }, "Klicka på ⚙ Hantera för att lägga till en person."),
+        el("div", {}, "No people added yet."),
+        el("div", { style: { fontSize: "12px", marginTop: "6px" } }, "Click ⚙ Manage to add a person."),
       ));
     } else {
       scroll.appendChild(el("div", { className: "section-label", style: { marginBottom: "4px" } }, "Familjemedlemmar"));
@@ -785,7 +785,7 @@ class SjukJournalCard extends HTMLElement {
       }
     }
 
-    scroll.appendChild(el("button", { className: "dashed-btn", onClick: () => this._openAdmin() }, "+ Lägg till person"));
+    scroll.appendChild(el("button", { className: "dashed-btn", onClick: () => this._openAdmin() }, "+ Add person"));
     scroll.appendChild(this._renderQuickInput());
 
     return el("div", { style: { display: "flex", flexDirection: "column", height: "100%" } }, topbar, scroll);
@@ -796,7 +796,7 @@ class SjukJournalCard extends HTMLElement {
     const temp = tempData?.value;
     const sc = statusColor(temp);
     const age = calcAge(person.birth_date);
-    const subParts = [age ? `${age} år` : null, person.gender ? GENDER_LABELS[person.gender] : null].filter(Boolean);
+    const subParts = [age ? `${age} yrs` : null, person.gender ? GENDER_LABELS[person.gender] : null].filter(Boolean);
 
     const card = el("div", {
       className: "person-card",
@@ -843,7 +843,7 @@ class SjukJournalCard extends HTMLElement {
 
       // Type chips
       const typeChips = el("div", { className: "chip-row", style: { marginBottom: "10px" } });
-      const skipInQuick = new Set(["height", "bmi"]);
+      const skipInQuick = new Set(["height", "bmi", "spo2"]);
       for (const [mtype, info] of Object.entries(MTYPE_LABELS)) {
         if (skipInQuick.has(mtype)) continue;
         const chip = el("button", { className: `chip${mtype === activeType ? " active" : ""}`,
@@ -865,21 +865,42 @@ class SjukJournalCard extends HTMLElement {
 
       // Value input
       const info = MTYPE_LABELS[activeType];
-      const input = el("input", { className: "field", placeholder: `Värde (${info.unit})`, type: "number", step: "0.1" });
-      const row = el("div", { style: { display: "flex", gap: "8px" } }, input,
-        el("button", { className: "btn btn-primary", style: { width: "auto", padding: "10px 18px" },
-          onClick: async () => {
-            const val = parseFloat(input.value);
-            if (!val || !activePerson) return;
-            await this._callService("log_measurement", {
-              person_id: activePerson, type: activeType,
-              value: val, unit: info.unit,
-            });
-            input.value = "";
-            this._showToast(`${info.label} sparad ✓`);
-          }
-        }, "Spara")
-      );
+      let row;
+      if (activeType === "blood_pressure") {
+        const sysInput = el("input", { className: "field", placeholder: "Sys (mmHg)", type: "number", step: "1" });
+        const diaInput = el("input", { className: "field", placeholder: "Dia (mmHg)", type: "number", step: "1" });
+        row = el("div", { style: { display: "flex", gap: "8px" } }, sysInput, diaInput,
+          el("button", { className: "btn btn-primary", style: { width: "auto", padding: "10px 18px" },
+            onClick: async () => {
+              const sys = parseFloat(sysInput.value);
+              const dia = parseFloat(diaInput.value);
+              if (!sys || !dia || !activePerson) return;
+              await this._callService("log_measurement", {
+                person_id: activePerson, type: "blood_pressure",
+                value: sys, value2: dia, unit: "mmHg",
+              });
+              sysInput.value = ""; diaInput.value = "";
+              this._showToast("Blodtryck sparat ✓");
+            }
+          }, "Spara")
+        );
+      } else {
+        const input = el("input", { className: "field", placeholder: `Value (${info.unit})`, type: "number", step: "0.1" });
+        row = el("div", { style: { display: "flex", gap: "8px" } }, input,
+          el("button", { className: "btn btn-primary", style: { width: "auto", padding: "10px 18px" },
+            onClick: async () => {
+              const val = parseFloat(input.value);
+              if (!val || !activePerson) return;
+              await this._callService("log_measurement", {
+                person_id: activePerson, type: activeType,
+                value: val, unit: info.unit,
+              });
+              input.value = "";
+              this._showToast(`${info.label} sparad ✓`);
+            }
+          }, "Spara")
+        );
+      }
       wrapper.appendChild(row);
     };
 
@@ -904,7 +925,7 @@ class SjukJournalCard extends HTMLElement {
       el("div", {},
         el("div", { style: { fontWeight: 800, fontSize: "17px" } }, person.name),
         el("div", { style: { fontSize: "11px", color: "var(--muted)" } },
-          [age ? `${age} år` : null, person.gender ? GENDER_LABELS[person.gender] : null].filter(Boolean).join(" · ") || "—"
+          [age ? `${age} yrs` : null, person.gender ? GENDER_LABELS[person.gender] : null].filter(Boolean).join(" · ") || "—"
         ),
       ),
       el("div", { style: { marginLeft: "auto", textAlign: "right" } },
@@ -918,12 +939,12 @@ class SjukJournalCard extends HTMLElement {
     );
 
     const tabs = [
-      { id: "overview",   label: "📊 Översikt" },
+      { id: "overview",   label: "📊 Overview" },
       { id: "temp",       label: "🌡 Temp" },
       { id: "body",       label: "⚖️ Kropp" },
       { id: "vital",      label: "💉 Vitala" },
       { id: "medication", label: "💊 Medicin" },
-      { id: "wellbeing",  label: "🌿 Mående" },
+      { id: "wellbeing",  label: "🌿 Wellbeing" },
     ];
 
     const tabBar = el("div", { className: "tab-bar" },
@@ -950,7 +971,7 @@ class SjukJournalCard extends HTMLElement {
     // Quick stats
     const stats = [
       { mtype: "temperature", label: "Temp", fmt: v => `${v}°`, color: statusColor(this._latestSensor(person, "temperature")?.value) },
-      { mtype: "pulse",       label: "Puls", fmt: v => `${v}`, color: "var(--teal)" },
+      { mtype: "pulse",       label: "Pulse", fmt: v => `${v}`, color: "var(--teal)" },
       { mtype: "spo2",        label: "SpO2", fmt: v => `${v}%`, color: "var(--green)" },
     ];
 
@@ -979,7 +1000,7 @@ class SjukJournalCard extends HTMLElement {
     const medCard = el("div", { className: "card" },
       el("div", { className: "card-title" }, "💊 Senaste medicin"),
       meds.length === 0
-        ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "Ingen medicinering loggad ännu.")
+        ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "No medication logged yet.")
         : el("div", {}, ...meds.map(m => el("div", { className: "entry-item" },
             el("div", { className: "entry-icon" }, "💊"),
             el("div", {},
@@ -1025,11 +1046,11 @@ class SjukJournalCard extends HTMLElement {
 
     // Stats
     const bodyMetrics = [
-      { mtype: "weight",        label: "Vikt",       color: "var(--teal)",   fmt: v => `${v} kg` },
-      { mtype: "height",        label: "Längd",      color: "var(--blue)",   fmt: v => `${v} cm` },
+      { mtype: "weight",        label: "Weight",       color: "var(--teal)",   fmt: v => `${v} kg` },
+      { mtype: "height",        label: "Height",      color: "var(--blue)",   fmt: v => `${v} cm` },
       { mtype: "bmi",           label: "BMI",        color: "var(--yellow)", fmt: v => `${v}` },
-      { mtype: "waist",         label: "Midjemått",  color: "var(--teal)",   fmt: v => `${v} cm` },
-      { mtype: "blood_glucose", label: "Blodsocker", color: "var(--red)",    fmt: v => `${v} mmol/L` },
+      { mtype: "waist",         label: "Waist",  color: "var(--teal)",   fmt: v => `${v} cm` },
+      { mtype: "blood_glucose", label: "Blood glucose", color: "var(--red)",    fmt: v => `${v} mmol/L` },
     ];
 
     const grid = el("div", { className: "stat-grid", style: { gridTemplateColumns: "repeat(2, 1fr)" } });
@@ -1044,7 +1065,7 @@ class SjukJournalCard extends HTMLElement {
       ));
     }
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "⚖️ Kroppsmått"),
+      el("div", { className: "card-title" }, "⚖️ Body metrics"),
       grid,
     ));
 
@@ -1055,7 +1076,7 @@ class SjukJournalCard extends HTMLElement {
         ...["30d", "90d", "365d"].map(r =>
           el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
             onClick: () => { this._state.chartRange = r; this._render(); }
-          }, r === "30d" ? "30 dagar" : r === "90d" ? "90 dagar" : "1 år")
+          }, r === "30d" ? "30 days" : r === "90d" ? "90 days" : "1 year")
         )
       ),
       el("div", { id: "chart-weight", style: { minHeight: "160px" } }),
@@ -1071,13 +1092,13 @@ class SjukJournalCard extends HTMLElement {
     const waIn  = el("input", { className: "field", placeholder: "80",   type: "number", step: "0.5", value: lastWa });
     const bgIn  = el("input", { className: "field", placeholder: "5.5",  type: "number", step: "0.1", value: lastBg });
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "Registrera kroppsmått"),
+      el("div", { className: "card-title" }, "Log body metrics"),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
         el("div", {}, el("label", { className: "form-label" }, "Vikt (kg)"), wIn),
-        el("div", {}, el("label", { className: "form-label" }, "Längd (cm)"), hIn),
+        el("div", {}, el("label", { className: "form-label" }, "Height (cm)"), hIn),
       ),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Midjemått (cm)"), waIn),
+        el("div", {}, el("label", { className: "form-label" }, "Waist (cm)"), waIn),
         el("div", {}, el("label", { className: "form-label" }, "Blodsocker (mmol/L)"), bgIn),
       ),
       this._autoBMINote(person),
@@ -1095,10 +1116,10 @@ class SjukJournalCard extends HTMLElement {
           if (weight || height) await this._tryAutoCalcBMI(person, weight ? "weight" : "height", weight || height);
           if (saved) {
             wIn.value = ""; hIn.value = ""; waIn.value = ""; bgIn.value = "";
-            this._showToast("Kroppsmått sparade ✓");
+            this._showToast("Body metrics saved ✓");
           }
         }
-      }, "Spara mätningar"),
+      }, "Save measurements"),
     ));
 
     return frag;
@@ -1144,9 +1165,9 @@ class SjukJournalCard extends HTMLElement {
     const h = this._latestSensor(person, "height");
     const bmi = calcBMI(w?.value, h?.value);
     if (!bmi) return el("div", { style: { fontSize: "11px", color: "var(--muted)", marginTop: "4px" } },
-      "BMI beräknas automatiskt när vikt och längd är angivna.");
+      "BMI is calculated automatically when weight and height are entered.");
     return el("div", { style: { fontSize: "12px", color: "var(--teal)", marginTop: "4px" } },
-      `📊 Beräknat BMI: ${bmi} kg/m²`);
+      `📊 Calculated BMI: ${bmi} kg/m²`);
   }
 
   // ── TAB: Vital signs ─────────────────────────────────────────────────────
@@ -1156,7 +1177,7 @@ class SjukJournalCard extends HTMLElement {
 
     const vitalMetrics = [
       { mtype: "blood_pressure", label: "Blodtryck sys", color: "var(--red)" },
-      { mtype: "pulse",          label: "Puls",          color: "var(--teal)" },
+      { mtype: "pulse",          label: "Pulse",          color: "var(--teal)" },
       { mtype: "spo2",           label: "SpO2",          color: "var(--green)" },
     ];
 
@@ -1185,7 +1206,7 @@ class SjukJournalCard extends HTMLElement {
         ...["30d", "90d", "365d"].map(r =>
           el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
             onClick: () => { this._state.chartRange = r; this._render(); }
-          }, r === "30d" ? "30 dagar" : r === "90d" ? "90 dagar" : "1 år")
+          }, r === "30d" ? "30 days" : r === "90d" ? "90 days" : "1 year")
         )
       ),
       el("div", { id: "chart-vital", style: { minHeight: "180px" } }),
@@ -1197,9 +1218,9 @@ class SjukJournalCard extends HTMLElement {
     frag.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "Registrera vitala"),
       el("div", { className: "form-row form-row-3", style: { marginBottom: "12px" } },
-        this._numericGroup("Systoliskt", "bp-sys", "120", lastBP?.value ?? ""),
-        this._numericGroup("Diastoliskt", "bp-dia", "80",  lastBP?.diastolic ?? ""),
-        this._numericGroup("Puls",        "bp-puls", "72", lastPuls?.value ?? ""),
+        this._numericGroup("Systolic", "bp-sys", "120", lastBP?.value ?? ""),
+        this._numericGroup("Diastolic", "bp-dia", "80",  lastBP?.diastolic ?? ""),
+        this._numericGroup("Pulse",        "bp-puls", "72", lastPuls?.value ?? ""),
       ),
       el("button", { className: "btn btn-primary",
         onClick: async () => {
@@ -1214,12 +1235,12 @@ class SjukJournalCard extends HTMLElement {
           }
           if (puls) {
             await this._callService("log_measurement", {
-              person_id: person.id, type: "pulse", value: puls, unit: "slag/min",
+              person_id: person.id, type: "pulse", value: puls, unit: "bpm",
             });
           }
           this._showToast("Blodtryck & puls sparade ✓");
         }
-      }, "Spara BT & puls"),
+      }, "Save BP & pulse"),
       el("div", { style: { height: "12px" } }),
       this._inlineInput("SpO2 (%)", "spo2", "%", "98", "1", person),
     ));
@@ -1249,9 +1270,9 @@ class SjukJournalCard extends HTMLElement {
       onChange: e => { selectedMed = e.target.value; }
     },
       ...medNames.map(m => el("option", { value: m }, m)),
-      el("option", { value: "__new__" }, "+ Ange nytt läkemedel…"),
+      el("option", { value: "__new__" }, "+ Enter new medication…"),
     );
-    const medCustom = el("input", { className: "field", placeholder: "Läkemedelsnamn", style: { display: "none" } });
+    const medCustom = el("input", { className: "field", placeholder: "Medication name", style: { display: "none" } });
     medSelect.addEventListener("change", () => {
       medCustom.style.display = medSelect.value === "__new__" ? "block" : "none";
     });
@@ -1270,12 +1291,12 @@ class SjukJournalCard extends HTMLElement {
 
     frag.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "Registrera medicin"),
-      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Läkemedel"), medSelect, medCustom),
+      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Medication"), medSelect, medCustom),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
         el("div", {}, el("label", { className: "form-label" }, "Dos"), doseInput),
         el("div", {}, el("label", { className: "form-label" }, "Enhet"), doseUnit),
       ),
-      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Administreringssätt"), routeSelect),
+      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Route"), routeSelect),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "12px" } },
         el("div", {}, el("label", { className: "form-label" }, "Klockslag"), timeInput),
         el("div", {}, el("label", { className: "form-label" }, "Anteckning"), noteInput),
@@ -1319,7 +1340,7 @@ class SjukJournalCard extends HTMLElement {
               el("button", { className: "btn-icon btn-danger",
                 onClick: async () => {
                   await this._callService("delete_entry", { person_id: person.id, entry_id: m.id });
-                  this._showToast("Post borttagen");
+                  this._showToast("Entry deleted");
                 }
               }, "🗑"),
             )
@@ -1336,7 +1357,7 @@ class SjukJournalCard extends HTMLElement {
       for (const m of p.medications || []) names.add(m.name);
     }
     if (names.size === 0) {
-      ["Alvedon 500mg", "Alvedon 1g", "Ipren 400mg", "Näsdroppar"].forEach(n => names.add(n));
+      ["Paracetamol 500mg", "Paracetamol 1g", "Ibuprofen 400mg", "Nasal spray"].forEach(n => names.add(n));
     }
     return [...names];
   }
@@ -1351,11 +1372,11 @@ class SjukJournalCard extends HTMLElement {
     let selectedTags = new Set(this._state.tags);
 
     const card = el("div", { className: "card" },
-      el("div", { className: "card-title" }, "🌿 Välbefinnande — registrera"),
+      el("div", { className: "card-title" }, "🌿 Wellbeing — log"),
     );
 
     // Pain scale
-    const painLabel = el("label", { className: "form-label" }, "Smärtnivå (NRS 0–10)");
+    const painLabel = el("label", { className: "form-label" }, "Pain level (NRS 0–10)");
     const painScale = el("div", { className: "pain-scale" });
     const renderPain = () => {
       painScale.innerHTML = "";
@@ -1372,8 +1393,8 @@ class SjukJournalCard extends HTMLElement {
     card.appendChild(el("div", { style: { marginTop: "14px" } }));
 
     // Mood
-    const moods = [["😴","Utmattad"],["😔","Trött"],["😐","Ok"],["🙂","Bättre"],["😊","Bra"]];
-    const moodLabel = el("label", { className: "form-label" }, "Humör / energi");
+    const moods = [["😴","Exhausted"],["😔","Tired"],["😐","Ok"],["🙂","Better"],["😊","Good"]];
+    const moodLabel = el("label", { className: "form-label" }, "Mood / energy");
     const moodRow = el("div", { className: "mood-row" });
     const renderMoods = () => {
       moodRow.innerHTML = "";
@@ -1411,7 +1432,7 @@ class SjukJournalCard extends HTMLElement {
     };
     renderTags();
 
-    const noteInput = el("input", { className: "field", placeholder: "Övriga symtom (fritext)…", style: { marginTop: "4px" } });
+    const noteInput = el("input", { className: "field", placeholder: "Other symptoms (free text)…", style: { marginTop: "4px" } });
 
     card.appendChild(tagLabel);
     card.appendChild(tagCloud);
@@ -1430,11 +1451,11 @@ class SjukJournalCard extends HTMLElement {
         // Reset state
         this._state.pain = null; this._state.mood = null; this._state.tags = new Set();
         noteInput.value = "";
-        this._showToast("Välbefinnande sparat ✓");
+        this._showToast("Wellbeing saved ✓");
         selectedPain = null; selectedMood = null; selectedTags = new Set();
         renderPain(); renderMoods(); renderTags();
       }
-    }, "Spara välbefinnande"));
+    }, "Save wellbeing"));
 
     frag.appendChild(card);
 
@@ -1442,12 +1463,12 @@ class SjukJournalCard extends HTMLElement {
     const recent = (person.wellbeing || []).slice(-14).reverse();
     if (recent.length > 0) {
       frag.appendChild(el("div", { className: "card" },
-        el("div", { className: "card-title" }, "📊 Smärta & humör", this._labelToggle()),
+        el("div", { className: "card-title" }, "📊 Pain & mood", this._labelToggle()),
         el("div", { className: "chip-row", style: { marginBottom: "12px" } },
           ...["30d", "90d", "365d"].map(r =>
             el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
               onClick: () => { this._state.chartRange = r; this._render(); }
-            }, r === "30d" ? "30 dagar" : r === "90d" ? "90 dagar" : "1 år")
+            }, r === "30d" ? "30 days" : r === "90d" ? "90 days" : "1 year")
           )
         ),
         el("div", { id: "chart-wellbeing", style: { minHeight: "160px" } }),
@@ -1483,21 +1504,21 @@ class SjukJournalCard extends HTMLElement {
             person.name + (isInactive ? " (avaktiverad)" : "")
           ),
           el("div", { className: "person-row-sub" },
-            [age ? `${age} år` : null, person.gender ? GENDER_LABELS[person.gender] : null,
+            [age ? `${age} yrs` : null, person.gender ? GENDER_LABELS[person.gender] : null,
              person.birth_date || null].filter(Boolean).join(" · ") || "—"
           ),
         ),
         isInactive
           ? el("button", { className: "btn-icon", style: { color: "var(--green)", fontSize: "14px", marginRight: "4px" },
-              title: "Återaktivera person",
+              title: "Reactivate person",
               onClick: async () => {
                 await this._hass.callService(DOMAIN, "activate_person", { person_id: person.id });
-                this._showToast(`${person.name} återaktiverad`);
+                this._showToast(`${person.name} reactivated`);
                 setTimeout(() => this._loadPersons(), 1500);
               }
             }, "↩")
           : el("button", { className: "btn-icon", style: { color: "var(--red)", fontSize: "16px", marginRight: "4px" },
-              title: "Radera person",
+              title: "Delete person",
               onClick: () => { this._state.deleteConfirmPersonId = person.id; this._render(); }
             }, "🗑"),
         el("button", { className: "btn-icon", style: { color: "var(--muted)", fontSize: "18px" },
@@ -1515,7 +1536,7 @@ class SjukJournalCard extends HTMLElement {
           `🗑 Radera ${p?.name || "person"}?`
         ),
         el("p", { style: { color: "var(--muted)", fontSize: "13px", marginBottom: "14px" } },
-          "Välj om du vill radera personen och all historik, eller bara avaktivera personen och behålla historiken."
+          "Choose whether to delete the person and all history, or just deactivate them and keep their history."
         ),
         el("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
           el("button", {
@@ -1525,10 +1546,10 @@ class SjukJournalCard extends HTMLElement {
               const pid = this._state.deleteConfirmPersonId;
               this._state.deleteConfirmPersonId = null;
               await this._hass.callService(DOMAIN, "delete_person", { person_id: pid, keep_history: false });
-              this._showToast("Person och historik raderad");
+              this._showToast("Person and history deleted");
               setTimeout(() => this._loadPersons(), 1500);
             }
-          }, "Radera allt"),
+          }, "Delete all"),
           el("button", {
             className: "btn",
             style: { background: "var(--yellow)", color: "#1a1a1a", flex: "1 1 120px" },
@@ -1539,7 +1560,7 @@ class SjukJournalCard extends HTMLElement {
               this._showToast("Person avaktiverad — historik bevarad");
               setTimeout(() => this._loadPersons(), 1500);
             }
-          }, "Behåll historik"),
+          }, "Keep history"),
           el("button", { className: "btn btn-ghost", style: { flex: "1 1 80px" }, onClick: cancel }, "Avbryt"),
         ),
       ));
@@ -1549,23 +1570,23 @@ class SjukJournalCard extends HTMLElement {
     const nameIn = el("input", { className: "field", placeholder: "Namn" });
     const bdIn   = el("input", { className: "field", type: "text", placeholder: "yyyy-mm-dd", pattern: "\\d{4}-\\d{2}-\\d{2}", maxLength: "10" });
     const genderSel = el("select", { className: "field" },
-      el("option", { value: "" }, "Kön (valfritt)"),
-      el("option", { value: "male" }, "Man"),
-      el("option", { value: "female" }, "Kvinna"),
-      el("option", { value: "other" }, "Annat"),
+      el("option", { value: "" }, "Gender (optional)"),
+      el("option", { value: "male" }, "Male"),
+      el("option", { value: "female" }, "Female"),
+      el("option", { value: "other" }, "Other"),
     );
 
     scroll.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "➕ Lägg till person"),
+      el("div", { className: "card-title" }, "➕ Add person"),
       el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Namn *"), nameIn),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "12px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Födelsedatum"), bdIn),
-        el("div", {}, el("label", { className: "form-label" }, "Kön"), genderSel),
+        el("div", {}, el("label", { className: "form-label" }, "Date of birth"), bdIn),
+        el("div", {}, el("label", { className: "form-label" }, "Gender"), genderSel),
       ),
       el("button", { className: "btn btn-primary",
         onClick: async () => {
           const name = nameIn.value.trim();
-          if (!name) { this._showToast("Ange ett namn", true); return; }
+          if (!name) { this._showToast("Enter a name", true); return; }
           await this._callService("add_person", {
             name,
             birth_date: bdIn.value || undefined,
@@ -1574,7 +1595,7 @@ class SjukJournalCard extends HTMLElement {
           nameIn.value = ""; bdIn.value = ""; genderSel.value = "";
           this._showToast(`${name} tillagd ✓`);
         }
-      }, "Spara person"),
+      }, "Save person"),
     ));
 
     return el("div", { style: { display: "flex", flexDirection: "column", height: "100%" } }, topbar, scroll);
@@ -1706,7 +1727,7 @@ class SjukJournalCard extends HTMLElement {
         yaxis: { ...apexDefaults().yaxis, min: 35.5, max: 40.5, tickAmount: 5,
           labels: { ...apexDefaults().yaxis.labels, formatter: v => v.toFixed(1) + "°" } },
         tooltip: { x: { format: this._apexTimeFormat() }, y: { formatter: v => v.toFixed(1) + " °C" } },
-        noData: { text: "Ingen historik ännu", style: { color: "#6B8599" } },
+        noData: { text: "No history yet", style: { color: "#6B8599" } },
       });
     }
 
@@ -1716,7 +1737,7 @@ class SjukJournalCard extends HTMLElement {
       await this._renderChart("chart-weight", {
         ...apexDefaults(160),
         chart: { ...apexDefaults().chart, type: "line", height: 160 },
-        series: [{ name: "Vikt kg", data: series }],
+        series: [{ name: "Weight kg", data: series }],
         colors: ["#17B8A6"],
         stroke: { curve: "smooth", width: 2.5 },
         markers: { size: 3, strokeColors: "#141B24", strokeWidth: 2 },
@@ -1729,7 +1750,7 @@ class SjukJournalCard extends HTMLElement {
           labels: { ...apexDefaults().xaxis.labels, datetimeFormatter: { day: "d MMM" } } },
         yaxis: { ...apexDefaults().yaxis,
           labels: { ...apexDefaults().yaxis.labels, formatter: v => v.toFixed(1) + " kg" } },
-        noData: { text: "Ingen historik ännu", style: { color: "#6B8599" } },
+        noData: { text: "No history yet", style: { color: "#6B8599" } },
       });
     }
 
@@ -1742,9 +1763,9 @@ class SjukJournalCard extends HTMLElement {
         ...apexDefaults(180),
         chart: { ...apexDefaults().chart, type: "line", height: 180 },
         series: [
-          { name: "Systoliskt", data: sysSeries },
-          { name: "Diastoliskt", data: diaSeries },
-          { name: "Puls", data: pulsSeries },
+          { name: "Systolic", data: sysSeries },
+          { name: "Diastolic", data: diaSeries },
+          { name: "Pulse", data: pulsSeries },
         ],
         colors: ["#F56565", "#FC8181", "#ECC94B"],
         stroke: { curve: "smooth", width: [2.5, 2, 2], dashArray: [0, 4, 6] },
@@ -1757,7 +1778,7 @@ class SjukJournalCard extends HTMLElement {
         xaxis: { ...apexDefaults().xaxis, type: "datetime" },
         legend: { show: true, position: "top", labels: { colors: "#6B8599" } },
         tooltip: { x: { format: this._apexTimeFormat() } },
-        noData: { text: "Ingen historik ännu", style: { color: "#6B8599" } },
+        noData: { text: "No history yet", style: { color: "#6B8599" } },
       });
     }
 
@@ -1773,8 +1794,8 @@ class SjukJournalCard extends HTMLElement {
           ...apexDefaults(160),
           chart: { ...apexDefaults().chart, type: "bar", height: 160 },
           series: [
-            { name: "Smärta", data: wb.map(w => w.pain ?? 0) },
-            { name: "Humör", data: wb.map(w => w.mood ?? 0) },
+            { name: "Pain", data: wb.map(w => w.pain ?? 0) },
+            { name: "Mood", data: wb.map(w => w.mood ?? 0) },
           ],
           colors: ["#ECC94B", "#17B8A6"],
           plotOptions: { bar: { borderRadius: 4, columnWidth: "60%" } },
@@ -1794,12 +1815,12 @@ class SjukJournalCard extends HTMLElement {
 
 // ── Register ─────────────────────────────────────────────────────────────────
 
-customElements.define("sjukjournal-card", SjukJournalCard);
+customElements.define("homesick-card", HomeSickCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "sjukjournal-card",
-  name: "SjukJournal",
-  description: "Hälsojournal för hela familjen",
+  type: "homesick-card",
+  name: "HomeSick",
+  description: "Family health journal",
   preview: true,
 });
