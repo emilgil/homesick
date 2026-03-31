@@ -12,7 +12,7 @@
  * - Fetches history via HA History API
  *
  * Struktur:
- *   HomeSickCard        — root custom element, hanterar routing
+ *   HomeSickCard        — root custom element, handles routing
  *   ├─ renderHome()        — startsida med personkort
  *   ├─ renderJournal()     — journalsida per person
  *   │   ├─ tabOverview()   — overview + temperature chart
@@ -465,6 +465,47 @@ function calcBMI(weightKg, heightCm) {
   return +(weightKg / (hm * hm)).toFixed(1);
 }
 
+// ── Unit system ───────────────────────────────────────────────────────────────
+
+function isImperial() {
+  return localStorage.getItem('homesick_units') === 'imperial';
+}
+
+function toDisplay(mtype, val) {
+  if (!isImperial() || val == null) return val;
+  switch (mtype) {
+    case 'temperature':   return +(val * 9 / 5 + 32).toFixed(1);
+    case 'weight':        return +(val * 2.20462).toFixed(1);
+    case 'height':
+    case 'waist':         return +(val * 0.393701).toFixed(1);
+    case 'blood_glucose': return Math.round(val * 18.0182);
+    default:              return val;
+  }
+}
+
+function fromDisplay(mtype, val) {
+  if (!isImperial() || val == null) return val;
+  switch (mtype) {
+    case 'temperature':   return +((val - 32) * 5 / 9).toFixed(2);
+    case 'weight':        return +(val / 2.20462).toFixed(2);
+    case 'height':
+    case 'waist':         return +(val / 0.393701).toFixed(1);
+    case 'blood_glucose': return +(val / 18.0182).toFixed(2);
+    default:              return val;
+  }
+}
+
+function displayUnit(mtype) {
+  if (!isImperial()) return MTYPE_LABELS[mtype]?.unit ?? '';
+  return { temperature: '°F', weight: 'lbs', height: 'in', waist: 'in', blood_glucose: 'mg/dL' }[mtype]
+      ?? MTYPE_LABELS[mtype]?.unit ?? '';
+}
+
+function convertSeries(mtype, series) {
+  if (!isImperial()) return series;
+  return series.map(p => ({ ...p, y: p.y != null ? toDisplay(mtype, p.y) : p.y }));
+}
+
 // ── Apex chart defaults ───────────────────────────────────────────────────────
 
 function apexDefaults(height = 180) {
@@ -880,25 +921,27 @@ class HomeSickCard extends HTMLElement {
                 value: sys, value2: dia, unit: "mmHg",
               });
               sysInput.value = ""; diaInput.value = "";
-              this._showToast("Blodtryck sparat ✓");
+              this._showToast("Blood pressure saved ✓");
             }
-          }, "Spara")
+          }, "Save")
         );
       } else {
-        const input = el("input", { className: "field", placeholder: `Value (${info.unit})`, type: "number", step: "0.1" });
+        const unit = displayUnit(activeType);
+        const input = el("input", { className: "field", placeholder: `Value (${unit})`, type: "number", step: "0.1" });
         row = el("div", { style: { display: "flex", gap: "8px" } }, input,
           el("button", { className: "btn btn-primary", style: { width: "auto", padding: "10px 18px" },
             onClick: async () => {
-              const val = parseFloat(input.value);
-              if (!val || !activePerson) return;
+              const displayVal = parseFloat(input.value);
+              if (!displayVal || !activePerson) return;
+              const metricVal = fromDisplay(activeType, displayVal);
               await this._callService("log_measurement", {
                 person_id: activePerson, type: activeType,
-                value: val, unit: info.unit,
+                value: metricVal, unit: info.unit,
               });
               input.value = "";
-              this._showToast(`${info.label} sparad ✓`);
+              this._showToast(`${info.label} saved ✓`);
             }
-          }, "Spara")
+          }, "Save")
         );
       }
       wrapper.appendChild(row);
@@ -930,7 +973,7 @@ class HomeSickCard extends HTMLElement {
       ),
       el("div", { style: { marginLeft: "auto", textAlign: "right" } },
         el("div", { style: { fontSize: "26px", fontWeight: 800, color: sc, lineHeight: 1 } },
-          temp ? `${temp}°C` : "—"
+          temp ? `${toDisplay('temperature', temp)}${displayUnit('temperature')}` : "—"
         ),
         el("div", { className: "status-pill", style: { background: `${sc}20`, color: sc, marginTop: "4px" } },
           statusLabel(temp)
@@ -942,7 +985,7 @@ class HomeSickCard extends HTMLElement {
       { id: "overview",   label: "📊 Overview" },
       { id: "temp",       label: "🌡 Temp" },
       { id: "body",       label: "⚖️ Kropp" },
-      { id: "vital",      label: "💉 Vitala" },
+      { id: "vital",      label: "💉 Vitals" },
       { id: "medication", label: "💊 Medicin" },
       { id: "wellbeing",  label: "🌿 Wellbeing" },
     ];
@@ -970,7 +1013,7 @@ class HomeSickCard extends HTMLElement {
 
     // Quick stats
     const stats = [
-      { mtype: "temperature", label: "Temp", fmt: v => `${v}°`, color: statusColor(this._latestSensor(person, "temperature")?.value) },
+      { mtype: "temperature", label: "Temp", fmt: v => `${toDisplay('temperature', v)}°`, color: statusColor(this._latestSensor(person, "temperature")?.value) },
       { mtype: "pulse",       label: "Pulse", fmt: v => `${v}`, color: "var(--teal)" },
       { mtype: "spo2",        label: "SpO2", fmt: v => `${v}%`, color: "var(--green)" },
     ];
@@ -981,14 +1024,14 @@ class HomeSickCard extends HTMLElement {
       statGrid.appendChild(el("div", { className: "stat-card" },
         el("div", { className: "stat-label" }, s.label),
         el("div", { className: "stat-value", style: { color: d ? s.color : "var(--muted)" } }, d ? s.fmt(d.value) : "—"),
-        el("div", { className: "stat-unit" }, d ? `kl ${fmtTs(d.timestamp, this._hass)}` : "ingen data"),
+        el("div", { className: "stat-unit" }, d ? `kl ${fmtTs(d.timestamp, this._hass)}` : "no data"),
       ));
     }
     frag.appendChild(statGrid);
 
     // Temperature chart
     const chartCard = el("div", { className: "card" },
-      el("div", { className: "card-title" }, "🌡 Temperaturkurva — 24 h", this._labelToggle()),
+      el("div", { className: "card-title" }, "🌡 Temperature — 24 h", this._labelToggle()),
       el("div", { id: "chart-overview", style: { minHeight: "180px" } }),
     );
     frag.appendChild(chartCard);
@@ -998,7 +1041,7 @@ class HomeSickCard extends HTMLElement {
       .slice().sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 4);
 
     const medCard = el("div", { className: "card" },
-      el("div", { className: "card-title" }, "💊 Senaste medicin"),
+      el("div", { className: "card-title" }, "💊 Recent medication"),
       meds.length === 0
         ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "No medication logged yet.")
         : el("div", {}, ...meds.map(m => el("div", { className: "entry-item" },
@@ -1021,12 +1064,12 @@ class HomeSickCard extends HTMLElement {
     const frag = el("div", { style: { display: "flex", flexDirection: "column", gap: "14px" } });
 
     const chartCard = el("div", { className: "card" },
-      el("div", { className: "card-title" }, "🌡 Temperaturkurva med medicinering", this._labelToggle()),
+      el("div", { className: "card-title" }, "🌡 Temperature with medication", this._labelToggle()),
       el("div", { className: "chip-row", style: { marginBottom: "12px" } },
         ...["24h", "7d", "30d"].map(r =>
           el("button", { className: `chip${this._state.tempRange === r ? " active" : ""}`,
             onClick: () => { this._state.tempRange = r; this._render(); }
-          }, r === "24h" ? "24 timmar" : r === "7d" ? "7 dagar" : "30 dagar")
+          }, r === "24h" ? "24 h" : r === "7d" ? "7 days" : "30 days")
         )
       ),
       el("div", { id: "chart-temp", style: { minHeight: "200px" } }),
@@ -1034,7 +1077,7 @@ class HomeSickCard extends HTMLElement {
     frag.appendChild(chartCard);
 
     // Input form
-    frag.appendChild(this._measurementForm(person, "temperature", "Temperatur (°C)", "37.8", "0.1"));
+    frag.appendChild(this._measurementForm(person, "temperature", `Temperature (${displayUnit('temperature')})`, isImperial() ? "99.0" : "37.8", "0.1"));
 
     return frag;
   }
@@ -1046,11 +1089,11 @@ class HomeSickCard extends HTMLElement {
 
     // Stats
     const bodyMetrics = [
-      { mtype: "weight",        label: "Weight",       color: "var(--teal)",   fmt: v => `${v} kg` },
-      { mtype: "height",        label: "Height",      color: "var(--blue)",   fmt: v => `${v} cm` },
-      { mtype: "bmi",           label: "BMI",        color: "var(--yellow)", fmt: v => `${v}` },
-      { mtype: "waist",         label: "Waist",  color: "var(--teal)",   fmt: v => `${v} cm` },
-      { mtype: "blood_glucose", label: "Blood glucose", color: "var(--red)",    fmt: v => `${v} mmol/L` },
+      { mtype: "weight",        label: "Weight",        color: "var(--teal)",   fmt: v => `${toDisplay('weight', v)} ${displayUnit('weight')}` },
+      { mtype: "height",        label: "Height",        color: "var(--blue)",   fmt: v => `${toDisplay('height', v)} ${displayUnit('height')}` },
+      { mtype: "bmi",           label: "BMI",           color: "var(--yellow)", fmt: v => `${v}` },
+      { mtype: "waist",         label: "Waist",         color: "var(--teal)",   fmt: v => `${toDisplay('waist', v)} ${displayUnit('waist')}` },
+      { mtype: "blood_glucose", label: "Blood glucose", color: "var(--red)",    fmt: v => `${toDisplay('blood_glucose', v)} ${displayUnit('blood_glucose')}` },
     ];
 
     const grid = el("div", { className: "stat-grid", style: { gridTemplateColumns: "repeat(2, 1fr)" } });
@@ -1061,7 +1104,7 @@ class HomeSickCard extends HTMLElement {
         el("div", { className: "stat-value", style: { color: d ? m.color : "var(--muted)", fontSize: "18px" } },
           d ? m.fmt(d.value) : "—"
         ),
-        el("div", { className: "stat-unit" }, d ? fmtDate(d.timestamp, this._hass) : "ingen data"),
+        el("div", { className: "stat-unit" }, d ? fmtDate(d.timestamp, this._hass) : "no data"),
       ));
     }
     frag.appendChild(el("div", { className: "card" },
@@ -1071,7 +1114,7 @@ class HomeSickCard extends HTMLElement {
 
     // BMI chart
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "📈 Vikt — trend", this._labelToggle()),
+      el("div", { className: "card-title" }, "📈 Weight — trend", this._labelToggle()),
       el("div", { className: "chip-row", style: { marginBottom: "12px" } },
         ...["30d", "90d", "365d"].map(r =>
           el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
@@ -1083,37 +1126,37 @@ class HomeSickCard extends HTMLElement {
     ));
 
     // Input forms
-    const lastW  = this._latestSensor(person, "weight")?.value ?? "";
-    const lastH  = this._latestSensor(person, "height")?.value ?? "";
-    const lastWa = this._latestSensor(person, "waist")?.value ?? "";
-    const lastBg = this._latestSensor(person, "blood_glucose")?.value ?? "";
-    const wIn   = el("input", { className: "field", placeholder: "70.5", type: "number", step: "0.1", value: lastW });
-    const hIn   = el("input", { className: "field", placeholder: "175",  type: "number", step: "0.5", value: lastH });
-    const waIn  = el("input", { className: "field", placeholder: "80",   type: "number", step: "0.5", value: lastWa });
-    const bgIn  = el("input", { className: "field", placeholder: "5.5",  type: "number", step: "0.1", value: lastBg });
+    const lastW  = this._latestSensor(person, "weight")?.value;
+    const lastH  = this._latestSensor(person, "height")?.value;
+    const lastWa = this._latestSensor(person, "waist")?.value;
+    const lastBg = this._latestSensor(person, "blood_glucose")?.value;
+    const wIn   = el("input", { className: "field", placeholder: isImperial() ? "155" : "70.5", type: "number", step: "0.1", value: lastW  != null ? toDisplay('weight', lastW) : "" });
+    const hIn   = el("input", { className: "field", placeholder: isImperial() ? "69"  : "175",  type: "number", step: "0.5", value: lastH  != null ? toDisplay('height', lastH) : "" });
+    const waIn  = el("input", { className: "field", placeholder: isImperial() ? "31"  : "80",   type: "number", step: "0.5", value: lastWa != null ? toDisplay('waist', lastWa) : "" });
+    const bgIn  = el("input", { className: "field", placeholder: isImperial() ? "99"  : "5.5",  type: "number", step: "0.1", value: lastBg != null ? toDisplay('blood_glucose', lastBg) : "" });
     frag.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "Log body metrics"),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Vikt (kg)"), wIn),
-        el("div", {}, el("label", { className: "form-label" }, "Height (cm)"), hIn),
+        el("div", {}, el("label", { className: "form-label" }, `Weight (${displayUnit('weight')})`), wIn),
+        el("div", {}, el("label", { className: "form-label" }, `Height (${displayUnit('height')})`), hIn),
       ),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Waist (cm)"), waIn),
-        el("div", {}, el("label", { className: "form-label" }, "Blodsocker (mmol/L)"), bgIn),
+        el("div", {}, el("label", { className: "form-label" }, `Waist (${displayUnit('waist')})`), waIn),
+        el("div", {}, el("label", { className: "form-label" }, `Blood glucose (${displayUnit('blood_glucose')})`), bgIn),
       ),
       this._autoBMINote(person),
       el("button", { className: "btn btn-primary", style: { marginTop: "10px" },
         onClick: async () => {
-          const weight      = parseFloat(wIn.value);
-          const height      = parseFloat(hIn.value);
-          const waist       = parseFloat(waIn.value);
-          const bloodGlucose = parseFloat(bgIn.value);
+          const wMetric  = fromDisplay('weight',        parseFloat(wIn.value)  || 0);
+          const hMetric  = fromDisplay('height',        parseFloat(hIn.value)  || 0);
+          const waMetric = fromDisplay('waist',         parseFloat(waIn.value) || 0);
+          const bgMetric = fromDisplay('blood_glucose', parseFloat(bgIn.value) || 0);
           let saved = false;
-          if (weight)      { await this._callService("log_measurement", { person_id: person.id, type: "weight",       value: weight,       unit: "kg" });      saved = true; }
-          if (height)      { await this._callService("log_measurement", { person_id: person.id, type: "height",       value: height,       unit: "cm" });      saved = true; }
-          if (waist)       { await this._callService("log_measurement", { person_id: person.id, type: "waist",        value: waist,        unit: "cm" });      saved = true; }
-          if (bloodGlucose){ await this._callService("log_measurement", { person_id: person.id, type: "blood_glucose",value: bloodGlucose, unit: "mmol/L" }); saved = true; }
-          if (weight || height) await this._tryAutoCalcBMI(person, weight ? "weight" : "height", weight || height);
+          if (wMetric)  { await this._callService("log_measurement", { person_id: person.id, type: "weight",       value: wMetric,  unit: "kg" });      saved = true; }
+          if (hMetric)  { await this._callService("log_measurement", { person_id: person.id, type: "height",       value: hMetric,  unit: "cm" });      saved = true; }
+          if (waMetric) { await this._callService("log_measurement", { person_id: person.id, type: "waist",        value: waMetric, unit: "cm" });      saved = true; }
+          if (bgMetric) { await this._callService("log_measurement", { person_id: person.id, type: "blood_glucose",value: bgMetric, unit: "mmol/L" }); saved = true; }
+          if (wMetric || hMetric) await this._tryAutoCalcBMI(person, wMetric ? "weight" : "height", wMetric || hMetric);
           if (saved) {
             wIn.value = ""; hIn.value = ""; waIn.value = ""; bgIn.value = "";
             this._showToast("Body metrics saved ✓");
@@ -1142,9 +1185,9 @@ class HomeSickCard extends HTMLElement {
             await this._tryAutoCalcBMI(person, mtype, val);
           }
           input.value = "";
-          this._showToast(`${label} sparad ✓`);
+          this._showToast(`${label} saved ✓`);
         }
-      }, "Spara"),
+      }, "Save"),
     );
     return wrap;
   }
@@ -1176,7 +1219,7 @@ class HomeSickCard extends HTMLElement {
     const frag = el("div", { style: { display: "flex", flexDirection: "column", gap: "14px" } });
 
     const vitalMetrics = [
-      { mtype: "blood_pressure", label: "Blodtryck sys", color: "var(--red)" },
+      { mtype: "blood_pressure", label: "BP systolic", color: "var(--red)" },
       { mtype: "pulse",          label: "Pulse",          color: "var(--teal)" },
       { mtype: "spo2",           label: "SpO2",          color: "var(--green)" },
     ];
@@ -1192,7 +1235,7 @@ class HomeSickCard extends HTMLElement {
       grid.appendChild(el("div", { className: "stat-card" },
         el("div", { className: "stat-label" }, m.label),
         el("div", { className: "stat-value", style: { color: d ? m.color : "var(--muted)", fontSize: "17px" } }, val),
-        el("div", { className: "stat-unit" }, d ? fmtTs(d.timestamp, this._hass) : "ingen data"),
+        el("div", { className: "stat-unit" }, d ? fmtTs(d.timestamp, this._hass) : "no data"),
       ));
     }
     frag.appendChild(el("div", { className: "card" },
@@ -1238,7 +1281,7 @@ class HomeSickCard extends HTMLElement {
               person_id: person.id, type: "pulse", value: puls, unit: "bpm",
             });
           }
-          this._showToast("Blodtryck & puls sparade ✓");
+          this._showToast("Blodtryck & puls saved ✓");
         }
       }, "Save BP & pulse"),
       el("div", { style: { height: "12px" } }),
@@ -1484,8 +1527,8 @@ class HomeSickCard extends HTMLElement {
     const topbar = el("div", { className: "sj-topbar" },
       el("button", { className: "btn-back", onClick: () => this._goHome() }, "←"),
       el("div", {},
-        el("div", { className: "sj-title" }, "⚙ Hantera personer"),
-        el("div", { className: "sj-subtitle" }, `${this._state.persons.length} personer`),
+        el("div", { className: "sj-title" }, "⚙ Manage people"),
+        el("div", { className: "sj-subtitle" }, `${this._state.persons.length} people`),
       ),
     );
 
@@ -1501,7 +1544,7 @@ class HomeSickCard extends HTMLElement {
         this._renderAvatar(person, 40),
         el("div", { className: "person-row-info" },
           el("div", { className: "person-row-name" },
-            person.name + (isInactive ? " (avaktiverad)" : "")
+            person.name + (isInactive ? " (inactive)" : "")
           ),
           el("div", { className: "person-row-sub" },
             [age ? `${age} yrs` : null, person.gender ? GENDER_LABELS[person.gender] : null,
@@ -1533,7 +1576,7 @@ class HomeSickCard extends HTMLElement {
       const cancel = () => { this._state.deleteConfirmPersonId = null; this._render(); };
       scroll.appendChild(el("div", { className: "card", style: { borderColor: "var(--red)", marginTop: "8px" } },
         el("div", { className: "card-title", style: { color: "var(--red)" } },
-          `🗑 Radera ${p?.name || "person"}?`
+          `🗑 Delete ${p?.name || "person"}?`
         ),
         el("p", { style: { color: "var(--muted)", fontSize: "13px", marginBottom: "14px" } },
           "Choose whether to delete the person and all history, or just deactivate them and keep their history."
@@ -1557,17 +1600,17 @@ class HomeSickCard extends HTMLElement {
               const pid = this._state.deleteConfirmPersonId;
               this._state.deleteConfirmPersonId = null;
               await this._hass.callService(DOMAIN, "delete_person", { person_id: pid, keep_history: true });
-              this._showToast("Person avaktiverad — historik bevarad");
+              this._showToast("Person deactivated — history kept");
               setTimeout(() => this._loadPersons(), 1500);
             }
           }, "Keep history"),
-          el("button", { className: "btn btn-ghost", style: { flex: "1 1 80px" }, onClick: cancel }, "Avbryt"),
+          el("button", { className: "btn btn-ghost", style: { flex: "1 1 80px" }, onClick: cancel }, "Cancel"),
         ),
       ));
     }
 
     // Add new person form
-    const nameIn = el("input", { className: "field", placeholder: "Namn" });
+    const nameIn = el("input", { className: "field", placeholder: "Name" });
     const bdIn   = el("input", { className: "field", type: "text", placeholder: "yyyy-mm-dd", pattern: "\\d{4}-\\d{2}-\\d{2}", maxLength: "10" });
     const genderSel = el("select", { className: "field" },
       el("option", { value: "" }, "Gender (optional)"),
@@ -1578,7 +1621,7 @@ class HomeSickCard extends HTMLElement {
 
     scroll.appendChild(el("div", { className: "card" },
       el("div", { className: "card-title" }, "➕ Add person"),
-      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Namn *"), nameIn),
+      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Name *"), nameIn),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "12px" } },
         el("div", {}, el("label", { className: "form-label" }, "Date of birth"), bdIn),
         el("div", {}, el("label", { className: "form-label" }, "Gender"), genderSel),
@@ -1593,9 +1636,24 @@ class HomeSickCard extends HTMLElement {
             gender: genderSel.value || undefined,
           });
           nameIn.value = ""; bdIn.value = ""; genderSel.value = "";
-          this._showToast(`${name} tillagd ✓`);
+          this._showToast(`${name} added ✓`);
         }
       }, "Save person"),
+    ));
+
+    // Unit system toggle
+    scroll.appendChild(el("div", { className: "card" },
+      el("div", { className: "card-title" }, "⚙️ Units"),
+      el("div", { style: { display: "flex", alignItems: "center", gap: "12px" } },
+        el("span", { style: { fontSize: "13px", color: isImperial() ? "var(--muted)" : "var(--text)" } }, "Metric"),
+        el("div", { className: `lbl-tog-track${isImperial() ? " on" : ""}`, style: { cursor: "pointer" },
+          onClick: () => {
+            localStorage.setItem('homesick_units', isImperial() ? 'metric' : 'imperial');
+            this._render();
+          }
+        }, el("div", { className: "lbl-tog-knob" })),
+        el("span", { style: { fontSize: "13px", color: isImperial() ? "var(--text)" : "var(--muted)" } }, "Imperial"),
+      ),
     ));
 
     return el("div", { style: { display: "flex", flexDirection: "column", height: "100%" } }, topbar, scroll);
@@ -1607,7 +1665,7 @@ class HomeSickCard extends HTMLElement {
     return el("div", { className: "lbl-tog",
       onClick: () => { this._state.showLabels = !this._state.showLabels; this._render(); }
     },
-      el("span", { className: "lbl-tog-label" }, "Etiketter"),
+      el("span", { className: "lbl-tog-label" }, "Labels"),
       el("div", { className: `lbl-tog-track${this._state.showLabels ? " on" : ""}` },
         el("div", { className: "lbl-tog-knob" })
       )
@@ -1637,29 +1695,30 @@ class HomeSickCard extends HTMLElement {
   // ── measurementForm helper ────────────────────────────────────────────────
 
   _measurementForm(person, mtype, label, placeholder, step) {
+    const info = MTYPE_LABELS[mtype];
     const input = el("input", { className: "field", placeholder, type: "number", step });
     const timeInput = this._makeTimeInput();
-    const info = MTYPE_LABELS[mtype];
 
     return el("div", { className: "card" },
-      el("div", { className: "card-title" }, `Registrera ${info.label.toLowerCase()}`),
+      el("div", { className: "card-title" }, `Log ${info.label.toLowerCase()}`),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "12px" } },
         el("div", {}, el("label", { className: "form-label" }, label), input),
-        el("div", {}, el("label", { className: "form-label" }, "Klockslag"), timeInput),
+        el("div", {}, el("label", { className: "form-label" }, "Time"), timeInput),
       ),
       el("button", { className: "btn btn-primary",
         onClick: async () => {
-          const val = parseFloat(input.value);
-          if (!val) return;
+          const displayVal = parseFloat(input.value);
+          if (!displayVal) return;
+          const metricVal = fromDisplay(mtype, displayVal);
           const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,"0")}-${String(_d.getDate()).padStart(2,"0")}`;
           const ts = `${today}T${timeInput.getValue()}:00`;
           await this._callService("log_measurement", {
-            person_id: person.id, type: mtype, value: val, unit: info.unit, timestamp: ts,
+            person_id: person.id, type: mtype, value: metricVal, unit: info.unit, timestamp: ts,
           });
           input.value = "";
-          this._showToast(`${info.label} sparad ✓`);
+          this._showToast(`${info.label} saved ✓`);
         }
-      }, `Spara ${info.label.toLowerCase()}`),
+      }, `Save ${info.label.toLowerCase()}`),
     );
   }
 
@@ -1705,11 +1764,13 @@ class HomeSickCard extends HTMLElement {
         })),
       };
 
+      const imp = isImperial();
+      const dispSeries = convertSeries('temperature', series);
       const chartId = tab === "overview" ? "chart-overview" : "chart-temp";
       await this._renderChart(chartId, {
         ...apexDefaults(tab === "temp" ? 200 : 170),
         chart: { ...apexDefaults().chart, type: "area", height: tab === "temp" ? 200 : 170 },
-        series: [{ name: "Temperatur °C", data: series.length > 0 ? series : [] }],
+        series: [{ name: imp ? "Temperature °F" : "Temperature °C", data: dispSeries.length > 0 ? dispSeries : [] }],
         colors: ["#17B8A6"],
         fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } },
         stroke: { curve: "smooth", width: 2.5 },
@@ -1721,23 +1782,31 @@ class HomeSickCard extends HTMLElement {
           style: { fontSize: "10px", colors: ["#1a1a1a"] },
           background: { enabled: true, fillColor: "#d4d4d4", borderRadius: 3, borderWidth: 0, opacity: 0.9 },
           offsetY: -6 },
-        annotations,
+        annotations: imp ? {
+          ...annotations,
+          yaxis: [
+            { y: 100.4, borderColor: "#F56565", strokeDashArray: 5, borderWidth: 1.5 },
+            { y: 99.1,  borderColor: "#ECC94B", strokeDashArray: 5, borderWidth: 1 },
+          ],
+        } : annotations,
         xaxis: { ...apexDefaults().xaxis, type: "datetime",
           labels: { ...apexDefaults().xaxis.labels, datetimeFormatter: { hour: this._apexTimeFormat() } } },
-        yaxis: { ...apexDefaults().yaxis, min: 35.5, max: 40.5, tickAmount: 5,
+        yaxis: { ...apexDefaults().yaxis,
+          min: imp ? 96 : 35.5, max: imp ? 105 : 40.5, tickAmount: 5,
           labels: { ...apexDefaults().yaxis.labels, formatter: v => v.toFixed(1) + "°" } },
-        tooltip: { x: { format: this._apexTimeFormat() }, y: { formatter: v => v.toFixed(1) + " °C" } },
+        tooltip: { x: { format: this._apexTimeFormat() }, y: { formatter: v => v.toFixed(1) + (imp ? " °F" : " °C") } },
         noData: { text: "No history yet", style: { color: "#6B8599" } },
       });
     }
 
     if (tab === "body") {
       const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRange] ?? 24 * 90;
-      const series = this._measurementSeries(person, "weight", chartHours);
+      const wSeries = convertSeries('weight', this._measurementSeries(person, "weight", chartHours));
+      const wUnit = displayUnit('weight');
       await this._renderChart("chart-weight", {
         ...apexDefaults(160),
         chart: { ...apexDefaults().chart, type: "line", height: 160 },
-        series: [{ name: "Weight kg", data: series }],
+        series: [{ name: `Weight ${wUnit}`, data: wSeries }],
         colors: ["#17B8A6"],
         stroke: { curve: "smooth", width: 2.5 },
         markers: { size: 3, strokeColors: "#141B24", strokeWidth: 2 },
@@ -1749,7 +1818,7 @@ class HomeSickCard extends HTMLElement {
         xaxis: { ...apexDefaults().xaxis, type: "datetime",
           labels: { ...apexDefaults().xaxis.labels, datetimeFormatter: { day: "d MMM" } } },
         yaxis: { ...apexDefaults().yaxis,
-          labels: { ...apexDefaults().yaxis.labels, formatter: v => v.toFixed(1) + " kg" } },
+          labels: { ...apexDefaults().yaxis.labels, formatter: v => v.toFixed(1) + ` ${wUnit}` } },
         noData: { text: "No history yet", style: { color: "#6B8599" } },
       });
     }
