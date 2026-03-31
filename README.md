@@ -1,126 +1,138 @@
-# SjukJournal — Installationsguide
+# HomeSick — Installation Guide
 
-## Förutsättningar
+HomeSick is a Home Assistant custom integration for family health journaling. Log temperatures, medications, vitals, body metrics and wellbeing for multiple people — all from a single Lovelace card.
+
+## Requirements
 - Home Assistant Core ≥ 2024.1
-- Lovelace i standard-läge (inte YAML-only)
+- Lovelace in standard mode (not YAML-only)
 
 ---
 
-## 1. Kopiera filerna
+## 1. Copy the files
 
 ```bash
-# Kopiera backend-integrationen
-cp -r custom_components/sjukjournal/ /config/custom_components/
+# Copy the backend integration
+cp -r custom_components/homesick/ /config/custom_components/
 
-# Kopiera frontend-kortet
-mkdir -p /config/www/sjukjournal
-cp www/sjukjournal/sjukjournal-card.js /config/www/sjukjournal/
+# Copy the frontend card
+mkdir -p /config/www/homesick
+cp www/homesick/homesick-card.js /config/www/homesick/
 ```
 
-## 2. Starta om Home Assistant
+## 2. Restart Home Assistant
 
-Inställningar → System → Starta om
+Settings → System → Restart
 
-## 3. Installera integrationen
+## 3. Install the integration
 
-Inställningar → Integrationer → Lägg till integration → sök "SjukJournal"
+Settings → Integrations → Add integration → search "HomeSick"
 
-Ange namn och eventuellt födelsedatum/kön på den första personen.
+Enter the name and optionally date of birth/gender for the first person.
 
-## 4. Lägg till Lovelace-resursen (om den inte registrerades automatiskt)
+## 4. Add the Lovelace resource (if not registered automatically)
 
-Inställningar → Instrumentpaneler → ⋮-menyn → Redigera → Hantera resurser
+Settings → Dashboards → ⋮ → Edit → Manage resources
 
-Lägg till:
-- URL: `/local/sjukjournal/sjukjournal-card.js`
-- Typ: JavaScript-modul
+Add:
+- URL: `/local/homesick/homesick-card.js`
+- Type: JavaScript module
 
-## 5. Lägg till kortet i din dashboard
+## 5. Add the card to your dashboard
 
-Redigera dashboard → Lägg till kort → Sök "SjukJournal"
+Edit dashboard → Add card → search "HomeSick"
 
-Eller manuell YAML:
+Or manual YAML:
 ```yaml
-type: custom:sjukjournal-card
+type: custom:homesick-card
 ```
 
 ---
 
-## Lägga till fler personer
+## Adding more people
 
-Klicka på **⚙ Hantera** i kortet och fyll i formuläret — ingen Developer Tools behövs.
+Click **⚙ Manage** in the card and fill in the form — no Developer Tools needed.
 
-Alternativt via Developer Tools → Tjänster:
+Or via Developer Tools → Services:
 
 ```yaml
-service: sjukjournal.add_person
+service: homesick.add_person
 data:
   name: Erik
   birth_date: "2015-03-14"
   gender: male
 ```
 
-## Radera eller avaktivera en person
+## Deleting or deactivating a person
 
-I **⚙ Hantera** finns en 🗑-knapp per person med två val:
-- **Radera allt** — tar bort personen och all historik permanent
-- **Behåll historik** — avaktiverar personen (döljs från startsidan, historiken bevaras)
+In **⚙ Manage**, each person has a 🗑 button with two options:
+- **Delete all** — permanently removes the person and all their history
+- **Keep history** — deactivates the person (hidden from home screen, history preserved)
 
-En avaktiverad person visas gråad i Hantera med en ↩-knapp för återaktivering.
+A deactivated person appears greyed out in Manage with a ↩ button to reactivate.
 
-## Logga en mätning via automation
+## Logging a measurement via automation
 
 ```yaml
-service: sjukjournal.log_measurement
+service: homesick.log_measurement
 data:
-  person_id: <person-uuid från sensor-attribut>
+  person_id: <person-uuid from sensor attributes>
   type: temperature
   value: 38.4
   unit: "°C"
 ```
 
-## Hitta person-UUID
+## Finding the person UUID
 
-Gå till Developer Tools → Stater → sök `sensor.sjukjournal_`
-Person-ID finns som attribut `person_id` på varje sensor.
+Go to Developer Tools → States → search `sensor.homesick_`
+The person ID is available as the `person_id` attribute on each sensor.
 
 ---
 
-## Filstruktur
+## Units — metric / imperial
+
+The card defaults to imperial if your browser locale is `en-US`, otherwise metric. You can override this manually in the card under **⚙ Manage → Units**.
+
+Values are always stored in metric internally. The unit toggle only affects display and input conversion.
+
+---
+
+## File structure
 
 ```
-custom_components/sjukjournal/
-  __init__.py        Ingångspunkt, registrerar allt
-  config_flow.py     Installationsguide i HA UI
-  const.py           Konstanter och mättyper
-  coordinator.py     DataUpdateCoordinator, cache
-  sensor.py          HA sensor-entiteter
-  services.py        8 HA-tjänster
-  storage.py         Lokal datalagring (HA Store)
-  strings.json       Svenska UI-strängar
+custom_components/homesick/
+  __init__.py        Entry point, wires everything together
+  config_flow.py     Setup wizard in HA UI
+  const.py           Constants and measurement types
+  coordinator.py     DataUpdateCoordinator, in-memory cache
+  sensor.py          HA sensor entities
+  services.py        8 HA services
+  storage.py         Local data storage (HA Store)
+  strings.json       English UI strings
   translations/
-    sv.json          Svenska
-    en.json          Engelska
+    en.json          English
+    sv.json          Swedish
 
-www/sjukjournal/
-  sjukjournal-card.js   Lovelace custom card (vanilla JS + ApexCharts)
+www/homesick/
+  homesick-card.js   Lovelace custom card (vanilla JS + ApexCharts)
+  logo.svg           Icon (no text)
+  logo_with_text.svg Full logo
 ```
 
 ---
 
-## Sensor-entiteter som skapas per person
+## Sensor entities created per person
 
-| Entitet | Enhet | Beskrivning |
-|---------|-------|-------------|
-| `sensor.sjukjournal_<namn>_temperature` | °C | Senaste temperatur |
-| `sensor.sjukjournal_<namn>_pulse` | slag/min | Senaste puls |
-| `sensor.sjukjournal_<namn>_blood_pressure` | mmHg | Senaste systoliskt BT |
-| `sensor.sjukjournal_<namn>_weight` | kg | Senaste vikt |
-| `sensor.sjukjournal_<namn>_height` | cm | Senaste längd |
-| `sensor.sjukjournal_<namn>_bmi` | kg/m² | Senaste BMI (auto-beräknat) |
-| `sensor.sjukjournal_<namn>_waist` | cm | Senaste midjemått |
-| `sensor.sjukjournal_<namn>_blood_glucose` | mmol/L | Senaste blodsocker |
-| `sensor.sjukjournal_<namn>_spo2` | % | Senaste syremättnad |
-| `sensor.sjukjournal_<namn>_pain` | NRS | Senaste smärtnivå |
-| `sensor.sjukjournal_<namn>_mood` | 1-5 | Senaste humör |
-| `sensor.sjukjournal_<namn>_last_medication` | — | Senaste medicin (namn) |
+| Entity | Unit | Description |
+|--------|------|-------------|
+| `sensor.homesick_<name>_temperature` | °C | Latest temperature |
+| `sensor.homesick_<name>_pulse` | bpm | Latest pulse |
+| `sensor.homesick_<name>_blood_pressure` | mmHg | Latest systolic BP |
+| `sensor.homesick_<name>_weight` | kg | Latest weight |
+| `sensor.homesick_<name>_height` | cm | Latest height |
+| `sensor.homesick_<name>_bmi` | kg/m² | Latest BMI (auto-calculated) |
+| `sensor.homesick_<name>_waist` | cm | Latest waist circumference |
+| `sensor.homesick_<name>_blood_glucose` | mmol/L | Latest blood glucose |
+| `sensor.homesick_<name>_spo2` | % | Latest oxygen saturation |
+| `sensor.homesick_<name>_pain` | NRS | Latest pain level |
+| `sensor.homesick_<name>_mood` | 1–5 | Latest mood |
+| `sensor.homesick_<name>_last_medication` | — | Latest medication (name) |
