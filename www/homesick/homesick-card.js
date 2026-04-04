@@ -36,7 +36,10 @@ async function ensureApex() {
     const s = document.createElement("script");
     s.src = APEX_CDN;
     s.onload = resolve;
-    s.onerror = reject;
+    s.onerror = () => reject(new Error(
+      "ApexCharts could not be loaded from CDN. Charts require internet access, " +
+      "or bundle apexcharts.min.js to /config/www/homesick/apexcharts.min.js."
+    ));
     document.head.appendChild(s);
   });
 }
@@ -79,8 +82,8 @@ const ROUTES = [
 const CSS = `
   :host {
     display: block;
-    font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
-    height: 800px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: var(--homesick-height, 800px);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -433,6 +436,20 @@ function fmtDate(ts, hass) {
   return new Date(ts).toLocaleDateString(lang, { day: "numeric", month: "short" });
 }
 
+/**
+ * Slugify a name the same way HA's Python slugify() does.
+ * NFD decomposition strips diacritics (å→a, ä→a, ö→o, é→e …)
+ * then non-alphanumeric runs become underscores.
+ */
+function slugify(name) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
 function calcAge(birthDate) {
   if (!birthDate) return null;
   const born = new Date(birthDate);
@@ -548,9 +565,10 @@ class HomeSickCard extends HTMLElement {
       personId: null,
       tab: "overview",
       tempRange: "24h",
-      chartRange: "90d",
+      chartRanges: { body: "90d", vital: "30d", wellbeing: "30d" },
       showLabels: false,
       deleteConfirmPersonId: null,
+      deleteConfirmEntryId: null,
       persons: [],
       loading: true,
       // per-tab form state
@@ -566,6 +584,11 @@ class HomeSickCard extends HTMLElement {
 
   setConfig(config) {
     this._config = config;
+  }
+
+  _cardHeight() {
+    const h = this._config?.height;
+    return h ? `${h}px` : "800px";
   }
 
   set hass(hass) {
@@ -648,7 +671,7 @@ class HomeSickCard extends HTMLElement {
   _latestSensor(person, mtype) {
     if (!person) return null;
     const entityId = person.entity_ids?.[mtype]
-      ?? `sensor.${DOMAIN}_${person.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${mtype}`;
+      ?? `sensor.${DOMAIN}_${slugify(person.name)}_${mtype}`;
     const state = this._hass?.states[entityId];
     if (!state || state.state === "unavailable" || state.state === "unknown") return null;
     return {
@@ -737,7 +760,13 @@ class HomeSickCard extends HTMLElement {
   }
 
   async _renderChart(containerId, options) {
-    await ensureApex();
+    try {
+      await ensureApex();
+    } catch (err) {
+      const container = this.shadowRoot.getElementById(containerId);
+      if (container) container.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px 0">${err.message}</div>`;
+      return;
+    }
     const container = this.shadowRoot.getElementById(containerId);
     if (!container) return;
     if (this._state.charts[containerId]) {
@@ -766,12 +795,12 @@ class HomeSickCard extends HTMLElement {
     const shadow = this.shadowRoot;
     shadow.innerHTML = "";
 
-    // Inject fonts + styles
+    // Inject styles
     const style = document.createElement("style");
-    style.textContent = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap');${CSS}`;
+    style.textContent = CSS;
     shadow.appendChild(style);
 
-    const root = el("div", { className: "sj-root" });
+    const root = el("div", { className: "sj-root", style: { "--homesick-height": this._cardHeight() } });
     shadow.appendChild(root);
 
     if (this._state.loading) {
@@ -823,7 +852,7 @@ class HomeSickCard extends HTMLElement {
         el("div", { style: { fontSize: "12px", marginTop: "6px" } }, "Click ⚙ Manage to add a person."),
       ));
     } else {
-      scroll.appendChild(el("div", { className: "section-label", style: { marginBottom: "4px" } }, "Familjemedlemmar"));
+      scroll.appendChild(el("div", { className: "section-label", style: { marginBottom: "4px" } }, "Family members"));
       for (const [i, person] of active.entries()) {
         scroll.appendChild(this._renderPersonCard(person, i));
       }
@@ -883,7 +912,7 @@ class HomeSickCard extends HTMLElement {
     const wrapper = el("div", { className: "card" });
     const rebuild = () => {
       wrapper.innerHTML = "";
-      wrapper.appendChild(el("div", { className: "card-title" }, "⚡ Snabbregistrering"));
+      wrapper.appendChild(el("div", { className: "card-title" }, "⚡ Quick entry"));
 
       // Type chips
       const typeChips = el("div", { className: "chip-row", style: { marginBottom: "10px" } });
@@ -1067,7 +1096,7 @@ class HomeSickCard extends HTMLElement {
     const frag = el("div", { style: { display: "flex", flexDirection: "column", gap: "14px" } });
 
     const chartCard = el("div", { className: "card" },
-      el("div", { className: "card-title" }, "🌡 Temperature with medication", this._labelToggle()),
+      el("div", { className: "card-title" }, "🌡 Temperature and medication", this._labelToggle()),
       el("div", { className: "chip-row", style: { marginBottom: "12px" } },
         ...["24h", "7d", "30d"].map(r =>
           el("button", { className: `chip${this._state.tempRange === r ? " active" : ""}`,
@@ -1120,8 +1149,8 @@ class HomeSickCard extends HTMLElement {
       el("div", { className: "card-title" }, "📈 Weight — trend", this._labelToggle()),
       el("div", { className: "chip-row", style: { marginBottom: "12px" } },
         ...["30d", "90d", "365d"].map(r =>
-          el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
-            onClick: () => { this._state.chartRange = r; this._render(); }
+          el("button", { className: `chip${this._state.chartRanges.body === r ? " active" : ""}`,
+            onClick: () => { this._state.chartRanges.body = r; this._render(); }
           }, r === "30d" ? "30 days" : r === "90d" ? "90 days" : "1 year")
         )
       ),
@@ -1159,7 +1188,10 @@ class HomeSickCard extends HTMLElement {
           if (hMetric)  { await this._callService("log_measurement", { person_id: person.id, type: "height",       value: hMetric,  unit: "cm" });      saved = true; }
           if (waMetric) { await this._callService("log_measurement", { person_id: person.id, type: "waist",        value: waMetric, unit: "cm" });      saved = true; }
           if (bgMetric) { await this._callService("log_measurement", { person_id: person.id, type: "blood_glucose",value: bgMetric, unit: "mmol/L" }); saved = true; }
-          if (wMetric || hMetric) await this._tryAutoCalcBMI(person, wMetric ? "weight" : "height", wMetric || hMetric);
+          // Use the freshly-entered values for BMI — don't rely on sensors which haven't updated yet
+          const wForBMI = wMetric || this._latestSensor(person, "weight")?.value;
+          const hForBMI = hMetric || this._latestSensor(person, "height")?.value;
+          if (wForBMI && hForBMI) await this._tryAutoCalcBMI(person, wForBMI, hForBMI);
           if (saved) {
             wIn.value = ""; hIn.value = ""; waIn.value = ""; bgIn.value = "";
             this._showToast("Body metrics saved ✓");
@@ -1183,9 +1215,11 @@ class HomeSickCard extends HTMLElement {
           await this._callService("log_measurement", {
             person_id: person.id, type: mtype, value: val, unit,
           });
-          // Auto-calculate BMI if both weight and height are available
+          // Auto-calculate BMI — use the freshly-entered value, fall back to sensor for the other
           if (mtype === "weight" || mtype === "height") {
-            await this._tryAutoCalcBMI(person, mtype, val);
+            const wVal = mtype === "weight" ? val : this._latestSensor(person, "weight")?.value;
+            const hVal = mtype === "height" ? val : this._latestSensor(person, "height")?.value;
+            await this._tryAutoCalcBMI(person, wVal, hVal);
           }
           input.value = "";
           this._showToast(`${label} saved ✓`);
@@ -1195,10 +1229,8 @@ class HomeSickCard extends HTMLElement {
     return wrap;
   }
 
-  async _tryAutoCalcBMI(person, justEnteredType, justEnteredValue) {
-    const weightData = justEnteredType === "weight" ? { value: justEnteredValue } : this._latestSensor(person, "weight");
-    const heightData = justEnteredType === "height" ? { value: justEnteredValue } : this._latestSensor(person, "height");
-    const bmi = calcBMI(weightData?.value, heightData?.value);
+  async _tryAutoCalcBMI(person, weightKg, heightCm) {
+    const bmi = calcBMI(weightKg, heightCm);
     if (bmi) {
       await this._callService("log_measurement", {
         person_id: person.id, type: "bmi", value: bmi, unit: "kg/m²",
@@ -1242,7 +1274,7 @@ class HomeSickCard extends HTMLElement {
       ));
     }
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "💉 Vitala parametrar"),
+      el("div", { className: "card-title" }, "💉 Vital signs"),
       grid,
     ));
 
@@ -1250,8 +1282,8 @@ class HomeSickCard extends HTMLElement {
       el("div", { className: "card-title" }, "📈 Blood pressure & pulse — trend", this._labelToggle()),
       el("div", { className: "chip-row", style: { marginBottom: "12px" } },
         ...["30d", "90d", "365d"].map(r =>
-          el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
-            onClick: () => { this._state.chartRange = r; this._render(); }
+          el("button", { className: `chip${this._state.chartRanges.vital === r ? " active" : ""}`,
+            onClick: () => { this._state.chartRanges.vital = r; this._render(); }
           }, r === "30d" ? "30 days" : r === "90d" ? "90 days" : "1 year")
         )
       ),
@@ -1262,7 +1294,7 @@ class HomeSickCard extends HTMLElement {
     const lastBP  = this._latestSensor(person, "blood_pressure");
     const lastPuls = this._latestSensor(person, "pulse");
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "Registrera vitala"),
+      el("div", { className: "card-title" }, "Log vitals"),
       el("div", { className: "form-row form-row-3", style: { marginBottom: "12px" } },
         this._numericGroup("Systolic", "bp-sys", "120", lastBP?.value ?? ""),
         this._numericGroup("Diastolic", "bp-dia", "80",  lastBP?.diastolic ?? ""),
@@ -1325,28 +1357,43 @@ class HomeSickCard extends HTMLElement {
 
     const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
     const doseUnit = el("select", { className: "field" },
-      ...["mg", "ml", "tablet", "puff", "droppe", "g"].map(u => el("option", { value: u }, u))
+      ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
     );
     const routeSelect = el("select", { className: "field",
       onChange: e => { selectedRoute = e.target.value; }
     },
       ...ROUTES.map(r => el("option", { value: r.value }, r.label))
     );
-    const noteInput = el("input", { className: "field", placeholder: "Anteckning (valfri)" });
+    const noteInput = el("input", { className: "field", placeholder: "Note (optional)" });
     const timeInput = this._makeTimeInput();
 
+    // Skipped-dose toggle
+    const skipTrack = el("div", { className: "lbl-tog-track", style: { cursor: "pointer" } },
+      el("div", { className: "lbl-tog-knob" })
+    );
+    const skipToggle = el("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none" } },
+      skipTrack,
+      el("span", { style: { fontSize: "13px", color: "var(--muted)" } }, "Skipped dose"),
+    );
+    skipTrack.addEventListener("click", () => {
+      isSkipped = !isSkipped;
+      skipTrack.classList.toggle("on", isSkipped);
+      skipTrack.nextElementSibling.style.color = isSkipped ? "var(--red)" : "var(--muted)";
+    });
+
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "Registrera medicin"),
+      el("div", { className: "card-title" }, "Log medication"),
       el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Medication"), medSelect, medCustom),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Dos"), doseInput),
-        el("div", {}, el("label", { className: "form-label" }, "Enhet"), doseUnit),
+        el("div", {}, el("label", { className: "form-label" }, "Dose"), doseInput),
+        el("div", {}, el("label", { className: "form-label" }, "Unit"), doseUnit),
       ),
-      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Route"), routeSelect),
-      el("div", { className: "form-row form-row-2", style: { marginBottom: "12px" } },
+      el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Method"), routeSelect),
+      el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
         el("div", {}, el("label", { className: "form-label" }, "Time"), timeInput),
-        el("div", {}, el("label", { className: "form-label" }, "Anteckning"), noteInput),
+        el("div", {}, el("label", { className: "form-label" }, "Note"), noteInput),
       ),
+      el("div", { style: { marginBottom: "12px" } }, skipToggle),
       el("button", { className: "btn btn-primary",
         onClick: async () => {
           const name = medSelect.value === "__new__" ? medCustom.value.trim() : medSelect.value;
@@ -1360,11 +1407,12 @@ class HomeSickCard extends HTMLElement {
             dose_unit: doseUnit.value,
             route: routeSelect.value,
             timestamp: ts,
+            skipped: isSkipped,
             note: noteInput.value,
           });
-          this._showToast("Medication logged ✓");
+          this._showToast(isSkipped ? "Skipped dose logged ✓" : "Medication logged ✓");
         }
-      }, "💊 Registrera dos"),
+      }, "💊 Log dose"),
     ));
 
     // History
@@ -1372,25 +1420,39 @@ class HomeSickCard extends HTMLElement {
       .slice().sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
     frag.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, `Historik (${meds.length} poster)`),
+      el("div", { className: "card-title" }, `History (${meds.length} entries)`),
       meds.length === 0
-        ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "Ingen medicinering loggad.")
-        : el("div", {}, ...meds.slice(0, 20).map(m =>
-            el("div", { className: "entry-item" },
+        ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "No medication logged.")
+        : el("div", {}, ...meds.slice(0, 20).map(m => {
+            const isPending = this._state.deleteConfirmEntryId === m.id;
+            return el("div", { className: "entry-item" },
               el("div", { className: "entry-icon" }, m.skipped ? "🚫" : "💊"),
               el("div", { style: { flex: 1 } },
                 el("div", { className: "entry-name", style: { textDecoration: m.skipped ? "line-through" : "none" } }, m.name),
                 el("div", { className: "entry-sub" }, `${m.dose || ""} ${m.unit || ""} · ${ROUTES.find(r => r.value === m.route)?.label || m.route}`.trim()),
               ),
-              el("div", { className: "entry-time" }, fmtTs(m.timestamp, this._hass)),
-              el("button", { className: "btn-icon btn-danger",
-                onClick: async () => {
-                  await this._callService("delete_entry", { person_id: person.id, entry_id: m.id });
-                  this._showToast("Entry deleted");
-                }
-              }, "🗑"),
-            )
-          ))
+              isPending
+                ? el("div", { style: { display: "flex", gap: "6px", alignItems: "center", marginLeft: "auto" } },
+                    el("span", { style: { fontSize: "11px", color: "var(--red)" } }, "Delete?"),
+                    el("button", { className: "btn", style: { background: "var(--red)", color: "white", padding: "4px 10px", fontSize: "12px" },
+                      onClick: async () => {
+                        this._state.deleteConfirmEntryId = null;
+                        await this._callService("delete_entry", { person_id: person.id, entry_id: m.id });
+                        this._showToast("Entry deleted");
+                      }
+                    }, "Yes"),
+                    el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
+                      onClick: () => { this._state.deleteConfirmEntryId = null; this._render(); }
+                    }, "No"),
+                  )
+                : el("div", { style: { display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" } },
+                    el("div", { className: "entry-time" }, fmtTs(m.timestamp, this._hass)),
+                    el("button", { className: "btn-icon btn-danger",
+                      onClick: () => { this._state.deleteConfirmEntryId = m.id; this._render(); }
+                    }, "🗑"),
+                  ),
+            );
+          }))
     ));
 
     return frag;
@@ -1512,8 +1574,8 @@ class HomeSickCard extends HTMLElement {
         el("div", { className: "card-title" }, "📊 Pain & mood", this._labelToggle()),
         el("div", { className: "chip-row", style: { marginBottom: "12px" } },
           ...["30d", "90d", "365d"].map(r =>
-            el("button", { className: `chip${this._state.chartRange === r ? " active" : ""}`,
-              onClick: () => { this._state.chartRange = r; this._render(); }
+            el("button", { className: `chip${this._state.chartRanges.wellbeing === r ? " active" : ""}`,
+              onClick: () => { this._state.chartRanges.wellbeing = r; this._render(); }
             }, r === "30d" ? "30 days" : r === "90d" ? "90 days" : "1 year")
           )
         ),
@@ -1614,7 +1676,7 @@ class HomeSickCard extends HTMLElement {
 
     // Add new person form
     const nameIn = el("input", { className: "field", placeholder: "Name" });
-    const bdIn   = el("input", { className: "field", type: "text", placeholder: "yyyy-mm-dd", pattern: "\\d{4}-\\d{2}-\\d{2}", maxLength: "10" });
+    const bdIn   = el("input", { className: "field", type: "date" });
     const genderSel = el("select", { className: "field" },
       el("option", { value: "" }, "Gender (optional)"),
       el("option", { value: "male" }, "Male"),
@@ -1742,7 +1804,7 @@ class HomeSickCard extends HTMLElement {
     const person = this._getPerson(this._state.personId);
     if (!person) return;
     const tab = this._state.tab;
-    const slug = person.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const slug = slugify(person.name);
     const eid = (mtype) => person.entity_ids?.[mtype]
       ?? `sensor.${DOMAIN}_${slug}_${mtype}`;
 
@@ -1758,7 +1820,7 @@ class HomeSickCard extends HTMLElement {
 
       const annotations = {
         yaxis: [{ y: 38.0, borderColor: "#F56565", strokeDashArray: 5, borderWidth: 1.5,
-          label: { text: "38° Feber", style: { background: "transparent", color: "#F56565", fontSize: "10px" } } }],
+          label: { text: "38° Fever", style: { background: "transparent", color: "#F56565", fontSize: "10px" } } }],
         xaxis: meds.map(m => ({
           x: toChartMs(m.timestamp),
           borderColor: "#17B8A6", strokeDashArray: 4, borderWidth: 1.5,
@@ -1803,7 +1865,7 @@ class HomeSickCard extends HTMLElement {
     }
 
     if (tab === "body") {
-      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRange] ?? 24 * 90;
+      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRanges.body] ?? 24 * 90;
       const wSeries = convertSeries('weight', this._measurementSeries(person, "weight", chartHours));
       const wUnit = displayUnit('weight');
       await this._renderChart("chart-weight", {
@@ -1827,7 +1889,7 @@ class HomeSickCard extends HTMLElement {
     }
 
     if (tab === "vital") {
-      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRange] ?? 24 * 90;
+      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRanges.vital] ?? 24 * 30;
       const sysSeries  = this._measurementSeries(person, "blood_pressure", chartHours);
       const diaSeries  = this._measurementSeries(person, "blood_pressure", chartHours, true);
       const pulsSeries = this._measurementSeries(person, "pulse", chartHours);
@@ -1856,7 +1918,7 @@ class HomeSickCard extends HTMLElement {
 
     if (tab === "wellbeing") {
       const person2 = this._getPerson(this._state.personId);
-      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRange] ?? 24 * 90;
+      const chartHours = { "30d": 24 * 30, "90d": 24 * 90, "365d": 24 * 365 }[this._state.chartRanges.wellbeing] ?? 24 * 30;
       const cutoff = Date.now() - chartHours * 3600 * 1000;
       const wb = (person2?.wellbeing || [])
         .filter(w => new Date(w.timestamp).getTime() >= cutoff)

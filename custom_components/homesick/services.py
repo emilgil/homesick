@@ -285,17 +285,17 @@ async def async_register_services(
 def _format_summary(summary: dict[str, Any]) -> str:
     """Format summary dict as a readable notification message."""
     lines = [
-        f"**{summary.get('person_name')}** — senaste {summary.get('hours')} timmar",
+        f"**{summary.get('person_name')}** — last {summary.get('hours')} hours",
         "",
-        f"Senaste temperatur: **{summary.get('latest_temperature', '—')} °C**",
-        f"Mätningar: {summary.get('measurement_count', 0)}",
-        f"Medicindoser: {summary.get('medication_count', 0)}",
-        f"Välbefinnande-poster: {summary.get('wellbeing_count', 0)}",
+        f"Latest temperature: **{summary.get('latest_temperature', '—')} °C**",
+        f"Measurements: {summary.get('measurement_count', 0)}",
+        f"Medication doses: {summary.get('medication_count', 0)}",
+        f"Wellbeing entries: {summary.get('wellbeing_count', 0)}",
     ]
 
     meds = summary.get("medications", [])
     if meds:
-        lines += ["", "**Medicin:**"]
+        lines += ["", "**Medication:**"]
         for m in meds[:5]:
             ts = m.get("timestamp", "")[:16].replace("T", " ")
             lines.append(f"- {ts} {m['name']}")

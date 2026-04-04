@@ -56,12 +56,12 @@ Data shape:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import DEFAULT_MEDICATIONS, DOMAIN, STORAGE_KEY, STORAGE_VERSION
 
@@ -69,8 +69,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:
-    """Return current local time as ISO 8601 string."""
-    return datetime.now().isoformat(timespec="seconds")
+    """Return current time as ISO 8601 string using HA's configured timezone."""
+    return dt_util.now().isoformat(timespec="seconds")
 
 
 def _make_id() -> str:
@@ -400,7 +400,7 @@ class HomeSickStore:
         """
         from datetime import timedelta
 
-        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat(timespec="seconds")
+        cutoff = (dt_util.now() - timedelta(hours=hours)).isoformat(timespec="seconds")
 
         data = await self.async_load()
         person = data["persons"].get(person_id)

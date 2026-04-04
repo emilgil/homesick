@@ -75,11 +75,14 @@ class HomeSickCoordinator(DataUpdateCoordinator[HomeSickData]):
 
         Called automatically every POLL_INTERVAL and also manually via
         async_request_refresh() after every service call.
+
+        Loads storage exactly once and processes everything in-memory to
+        avoid N×M disk reads (one per person per measurement type).
         """
-        persons_raw = await self.store.async_get_persons()
+        data = await self.store.async_load()
         snapshots: dict[str, PersonSnapshot] = {}
 
-        for person in persons_raw:
+        for person in data.get("persons", {}).values():
             pid = person["id"]
             snapshot = PersonSnapshot(
                 person_id=pid,
@@ -87,14 +90,21 @@ class HomeSickCoordinator(DataUpdateCoordinator[HomeSickData]):
                 active=person.get("active", True),
             )
 
-            # Build latest dict: one entry per measurement type
+            # Build latest dict: one entry per measurement type, in-memory
+            measurements = person.get("measurements", [])
             for mtype in MEASUREMENT_TYPES:
-                entry = await self.store.async_get_latest_measurement(pid, mtype)
-                if entry:
-                    snapshot.latest[mtype] = entry
+                type_entries = [m for m in measurements if m["type"] == mtype]
+                if type_entries:
+                    snapshot.latest[mtype] = max(
+                        type_entries, key=lambda e: e["timestamp"]
+                    )
 
             # Last medication
-            meds = await self.store.async_get_medications(pid, limit=1)
+            meds = sorted(
+                person.get("medications", []),
+                key=lambda e: e["timestamp"],
+                reverse=True,
+            )
             snapshot.last_medication = meds[0] if meds else None
 
             snapshots[pid] = snapshot

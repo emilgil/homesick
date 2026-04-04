@@ -55,7 +55,7 @@ from .coordinator import HomeSickCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 # Unit for pulse (beats per minute) — HA doesn't have a built-in constant
-BEATS_PER_MINUTE = "slag/min"
+BEATS_PER_MINUTE = "bpm"
 MMHG = "mmHg"
 
 
