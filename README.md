@@ -21,7 +21,20 @@ Use HomeSick for personal reference only.
 
 ---
 
-## 1. Copy the files
+## Installation via HACS (recommended)
+
+1. Open HACS in your Home Assistant sidebar
+2. Click ⋮ → **Custom repositories**
+3. Add `https://github.com/emilgil/homesick` with category **Integration**
+4. Search for "HomeSick" in HACS and install it
+5. Restart Home Assistant
+6. Go to **Settings → Integrations → Add integration** and search for "HomeSick"
+
+---
+
+## Manual Installation
+
+### 1. Copy the files
 
 ```bash
 # Copy the backend integration
@@ -32,17 +45,17 @@ mkdir -p /config/www/homesick
 cp www/homesick/homesick-card.js /config/www/homesick/
 ```
 
-## 2. Restart Home Assistant
+### 2. Restart Home Assistant
 
 Settings → System → Restart
 
-## 3. Install the integration
+### 3. Install the integration
 
 Settings → Integrations → Add integration → search "HomeSick"
 
 Enter the name and optionally date of birth/gender for the first person.
 
-## 4. Add the Lovelace resource (if not registered automatically)
+### 4. Add the Lovelace resource (if not registered automatically)
 
 Settings → Dashboards → ⋮ → Edit → Manage resources
 
@@ -50,7 +63,7 @@ Add:
 - URL: `/local/homesick/homesick-card.js`
 - Type: JavaScript module
 
-## 5. Add the card to your dashboard
+### 5. Add the card to your dashboard
 
 Edit dashboard → Add card → search "HomeSick"
 
@@ -149,3 +162,9 @@ www/homesick/
 | `sensor.homesick_<name>_pain` | NRS | Latest pain level |
 | `sensor.homesick_<name>_mood` | 1–5 | Latest mood |
 | `sensor.homesick_<name>_last_medication` | — | Latest medication (name) |
+
+---
+
+## Issues & Feedback
+
+Found a bug or have a feature request? [Open an issue](https://github.com/emilgil/homesick/issues).
