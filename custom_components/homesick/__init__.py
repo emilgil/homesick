@@ -15,7 +15,9 @@ Lifecycle:
 from __future__ import annotations
 
 import logging
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
 
 import voluptuous as vol
 
@@ -85,7 +87,8 @@ async def async_setup_entry(
     # 7. Register WebSocket API
     _async_register_websocket_api(hass, store)
 
-    # 8. Register Lovelace card resource
+    # 8. Copy Lovelace card JS into www/ and register the resource
+    await _async_ensure_frontend(hass)
     await _async_register_lovelace_resource(hass)
 
     _LOGGER.info("HomeSick: setup complete")
@@ -170,6 +173,33 @@ def _async_register_websocket_api(hass: HomeAssistant, store: HomeSickStore) -> 
     hass.data.setdefault(DOMAIN, {})["store"] = store
     websocket_api.async_register_command(hass, _ws_get_persons)
     websocket_api.async_register_command(hass, _ws_get_person_data)
+
+
+async def _async_ensure_frontend(hass: HomeAssistant) -> None:
+    """Copy homesick-card.js from the integration dir to www/homesick/.
+
+    Idempotent — only copies when the destination is missing or older than
+    the source, so HACS-installed users always get the JS shipped with the
+    integration without manual setup.
+    """
+    src = Path(__file__).parent / "homesick-card.js"
+    dst_dir = Path(hass.config.path("www", "homesick"))
+    dst = dst_dir / "homesick-card.js"
+
+    if not src.exists():
+        _LOGGER.error("HomeSick: source JS not found at %s", src)
+        return
+
+    def _copy() -> bool:
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
+            shutil.copy2(str(src), str(dst))
+            return True
+        return False
+
+    copied = await hass.async_add_executor_job(_copy)
+    if copied:
+        _LOGGER.info("HomeSick: copied homesick-card.js to %s", dst)
 
 
 async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
