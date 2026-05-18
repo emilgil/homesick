@@ -94,11 +94,13 @@ class HomeSickStore:
                 "medication_list": list(DEFAULT_MEDICATIONS),
                 "schedules": {},
                 "reminders_enabled": True,
+                "med_catalog": {},
             }
         # Ensure keys exist for older storage versions
         data.setdefault("medication_list", list(DEFAULT_MEDICATIONS))
         data.setdefault("schedules", {})
         data.setdefault("reminders_enabled", True)
+        data.setdefault("med_catalog", {})
         return data
 
     async def async_save(self, data: dict[str, Any]) -> None:
@@ -572,4 +574,26 @@ class HomeSickStore:
     async def async_set_reminders_enabled(self, value: bool) -> None:
         data = await self.async_load()
         data["reminders_enabled"] = value
+        await self.async_save(data)
+
+    # ── Medication catalog (global defaults) ─────────────────────────────────
+
+    async def async_get_med_catalog(self) -> dict:
+        """Return global medication catalog {key: {name, default_dose, default_unit}}."""
+        data = await self.async_load()
+        return data.get("med_catalog", {})
+
+    async def async_update_med_catalog(
+        self, name: str, dose: float | None, unit: str | None
+    ) -> None:
+        """Upsert a catalog entry. Only updates dose/unit when dose is provided."""
+        data = await self.async_load()
+        catalog = data.setdefault("med_catalog", {})
+        key = name.strip().lower()
+        entry = catalog.get(key, {"name": name})
+        entry["name"] = name
+        if dose is not None:
+            entry["default_dose"] = dose
+            entry["default_unit"] = unit or "mg"
+        catalog[key] = entry
         await self.async_save(data)
