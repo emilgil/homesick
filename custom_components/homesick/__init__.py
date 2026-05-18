@@ -22,6 +22,7 @@ from pathlib import Path
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
+from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -97,6 +98,12 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})["reminder_engine"] = engine
     person_ids = [p["id"] for p in await store.async_get_persons(active_only=True)]
     await engine.async_boot(person_ids)
+
+    # 10. Register REST endpoints for schedules + settings (once per HA boot)
+    if not hass.data[DOMAIN].get("_views_registered"):
+        hass.http.register_view(HomeSickScheduleView())
+        hass.http.register_view(HomeSickSettingsView())
+        hass.data[DOMAIN]["_views_registered"] = True
 
     _LOGGER.info("HomeSick: setup complete")
     return True
@@ -180,6 +187,34 @@ def _async_register_websocket_api(hass: HomeAssistant, store: HomeSickStore) -> 
     hass.data.setdefault(DOMAIN, {})["store"] = store
     websocket_api.async_register_command(hass, _ws_get_persons)
     websocket_api.async_register_command(hass, _ws_get_person_data)
+
+
+class HomeSickScheduleView(HomeAssistantView):
+    """GET /api/homesick/schedules/<person_id>"""
+
+    url = "/api/homesick/schedules/{person_id}"
+    name = "api:homesick:schedules"
+    requires_auth = True
+
+    async def get(self, request, person_id: str):
+        hass = request.app["hass"]
+        store: HomeSickStore = hass.data[DOMAIN]["store"]
+        schedules = await store.async_get_all_schedules_for_person(person_id)
+        return self.json(schedules)
+
+
+class HomeSickSettingsView(HomeAssistantView):
+    """GET /api/homesick/settings — global settings incl. reminders_enabled."""
+
+    url = "/api/homesick/settings"
+    name = "api:homesick:settings"
+    requires_auth = True
+
+    async def get(self, request):
+        hass = request.app["hass"]
+        store: HomeSickStore = hass.data[DOMAIN]["store"]
+        enabled = await store.async_get_reminders_enabled()
+        return self.json({"reminders_enabled": enabled})
 
 
 async def _async_ensure_frontend(hass: HomeAssistant) -> None:
