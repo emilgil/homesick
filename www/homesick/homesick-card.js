@@ -396,6 +396,66 @@ const CSS = `
     .form-row-3 { grid-template-columns: 1fr 1fr; }
     .stat-grid-3 { grid-template-columns: repeat(2, 1fr); }
   }
+
+  /* ── Reminder / schedule UI ── */
+  .sj-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+  }
+  .sj-modal {
+    background: var(--card, #1e1e2e);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 320px; max-width: 480px; width: 90%;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .sj-modal h3 { margin: 0; font-size: 1.1rem; color: var(--text); }
+  .sj-modal p  { font-size: .9rem; color: var(--muted); margin: 0; }
+  .sj-modal label {
+    font-size: .85rem; color: var(--muted); margin-bottom: 2px; display: block;
+  }
+  .sj-modal select, .sj-modal input, .sj-modal textarea {
+    width: 100%; padding: 8px; border-radius: 6px;
+    border: 1px solid var(--border, #333);
+    background: var(--mid, #2a2a3e);
+    color: var(--text);
+    font-size: .9rem;
+    font-family: inherit;
+  }
+  .sj-modal-actions {
+    display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px;
+  }
+  .sj-btn {
+    padding: 8px 16px; border-radius: 6px; cursor: pointer;
+    border: none; font-size: .9rem; font-weight: 600;
+  }
+  .sj-btn-primary { background: var(--primary, #7c6af7); color: white; }
+  .sj-btn-secondary { background: var(--mid, #2a2a3e); color: var(--text); }
+  .sj-btn-ghost { background: transparent; color: var(--muted); }
+
+  /* switch toggle (modal-only; admin view uses existing lbl-tog) */
+  .sj-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .sj-switch input { opacity: 0; width: 0; height: 0; }
+  .sj-switch-slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: var(--border, #555); border-radius: 22px;
+    transition: .2s;
+  }
+  .sj-switch-slider:before {
+    content: ''; position: absolute;
+    width: 16px; height: 16px; left: 3px; bottom: 3px;
+    background: white; border-radius: 50%; transition: .2s;
+  }
+  .sj-switch input:checked + .sj-switch-slider { background: var(--primary, #7c6af7); }
+  .sj-switch input:checked + .sj-switch-slider:before { transform: translateX(18px); }
+  .sj-switch-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
 `;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
