@@ -1720,6 +1720,7 @@ class HomeSickCard extends HTMLElement {
     });
 
     const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
+    const doseError = el("div", { style: { color: "var(--red)", fontSize: "12px", marginTop: "4px", display: "none" } }, "Ange en siffra eller lämna tomt (loggas utan dos)");
     const doseUnit = el("select", { className: "field" },
       ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
     );
@@ -1749,7 +1750,7 @@ class HomeSickCard extends HTMLElement {
       el("div", { className: "card-title" }, "Log medication"),
       el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Medication"), medSelect, medCustom),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Dose"), doseInput),
+        el("div", {}, el("label", { className: "form-label" }, "Dose"), doseInput, doseError),
         el("div", {}, el("label", { className: "form-label" }, "Unit"), doseUnit),
       ),
       el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Method"), routeSelect),
@@ -1762,12 +1763,23 @@ class HomeSickCard extends HTMLElement {
         onClick: async () => {
           const name = medSelect.value === "__new__" ? medCustom.value.trim() : medSelect.value;
           if (!name) return;
+
+          // Validate dose: empty = OK (sent as null); non-numeric = blocked with inline error
+          const rawDose = doseInput.value.trim();
+          const parsedDose = rawDose === "" ? null : parseFloat(rawDose);
+          if (rawDose !== "" && isNaN(parsedDose)) {
+            doseError.style.display = "block";
+            doseInput.focus();
+            return;
+          }
+          doseError.style.display = "none";
+
           const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,"0")}-${String(_d.getDate()).padStart(2,"0")}`;
           const ts = `${today}T${timeInput.getValue()}:00`;
           await this._callService("log_medication", {
             person_id: person.id,
             medication: name,
-            dose: parseFloat(doseInput.value) || null,
+            dose: parsedDose,
             dose_unit: doseUnit.value,
             route: routeSelect.value,
             timestamp: ts,
