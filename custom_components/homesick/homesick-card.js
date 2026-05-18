@@ -651,6 +651,7 @@ class HomeSickCard extends HTMLElement {
       charts: {},          // apex instances keyed by id
       schedulesByPerson: {}, // personId → { medKey: schedule }
       remindersEnabled: true,
+      pendingSchedulePrompt: null, // { personId, medicineName, schedule } — survives re-renders
     };
     this._toast = null;
   }
@@ -843,35 +844,9 @@ class HomeSickCard extends HTMLElement {
     const key = medicineName.trim().toLowerCase().replace(/ /g, "_");
     const schedule = schedules[key] || null;
     if (_shouldPromptSchedule(schedule, masterEnabled)) {
-      this._showSchedulePrompt(personId, medicineName, schedule);
+      this._state.pendingSchedulePrompt = { personId, medicineName, schedule };
+      this._render();
     }
-  }
-
-  _showSchedulePrompt(personId, medicineName, existingSchedule) {
-    const modal = document.createElement("div");
-    modal.className = "sj-modal-overlay";
-    modal.innerHTML = `
-      <div class="sj-modal">
-        <h3>Påminnelse för ${medicineName}?</h3>
-        <p>Vill du lägga upp ett påminnelseschema?</p>
-        <div class="sj-modal-actions">
-          <button class="sj-btn sj-btn-primary" id="sj-prompt-yes">Ja</button>
-          <button class="sj-btn sj-btn-secondary" id="sj-prompt-no">Nej</button>
-        </div>
-      </div>
-    `;
-    this.shadowRoot.appendChild(modal);
-    modal.querySelector("#sj-prompt-yes").addEventListener("click", () => {
-      modal.remove();
-      this._showScheduleEditor(personId, medicineName, existingSchedule);
-    });
-    modal.querySelector("#sj-prompt-no").addEventListener("click", () => {
-      modal.remove();
-      this._callService("decline_reminder", {
-        person_id: personId,
-        medicine_name: medicineName,
-      });
-    });
   }
 
   _renderRemindersSection(person, schedules) {
@@ -1179,6 +1154,37 @@ class HomeSickCard extends HTMLElement {
 
     const toast = el("div", { className: "toast" });
     root.appendChild(toast);
+
+    // Render pending schedule prompt modal — kept in state so it survives re-renders
+    if (this._state.pendingSchedulePrompt) {
+      const { personId, medicineName, schedule } = this._state.pendingSchedulePrompt;
+      const modal = document.createElement("div");
+      modal.className = "sj-modal-overlay";
+      modal.innerHTML = `
+        <div class="sj-modal">
+          <h3>Påminnelse för ${medicineName}?</h3>
+          <p>Vill du lägga upp ett påminnelseschema?</p>
+          <div class="sj-modal-actions">
+            <button class="sj-btn sj-btn-primary" id="sj-prompt-yes">Ja</button>
+            <button class="sj-btn sj-btn-secondary" id="sj-prompt-no">Nej</button>
+          </div>
+        </div>
+      `;
+      shadow.appendChild(modal);
+      modal.querySelector("#sj-prompt-yes").addEventListener("click", () => {
+        this._state.pendingSchedulePrompt = null;
+        this._render();
+        this._showScheduleEditor(personId, medicineName, schedule);
+      });
+      modal.querySelector("#sj-prompt-no").addEventListener("click", () => {
+        this._state.pendingSchedulePrompt = null;
+        this._callService("decline_reminder", {
+          person_id: personId,
+          medicine_name: medicineName,
+        });
+        this._render();
+      });
+    }
 
     // Schedule chart renders after DOM is painted
     requestAnimationFrame(() => this._postRender());
