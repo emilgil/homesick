@@ -396,6 +396,66 @@ const CSS = `
     .form-row-3 { grid-template-columns: 1fr 1fr; }
     .stat-grid-3 { grid-template-columns: repeat(2, 1fr); }
   }
+
+  /* ── Reminder / schedule UI ── */
+  .sj-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+  }
+  .sj-modal {
+    background: var(--card, #1e1e2e);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 320px; max-width: 480px; width: 90%;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .sj-modal h3 { margin: 0; font-size: 1.1rem; color: var(--text); }
+  .sj-modal p  { font-size: .9rem; color: var(--muted); margin: 0; }
+  .sj-modal label {
+    font-size: .85rem; color: var(--muted); margin-bottom: 2px; display: block;
+  }
+  .sj-modal select, .sj-modal input, .sj-modal textarea {
+    width: 100%; padding: 8px; border-radius: 6px;
+    border: 1px solid var(--border, #333);
+    background: var(--mid, #2a2a3e);
+    color: var(--text);
+    font-size: .9rem;
+    font-family: inherit;
+  }
+  .sj-modal-actions {
+    display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px;
+  }
+  .sj-btn {
+    padding: 8px 16px; border-radius: 6px; cursor: pointer;
+    border: none; font-size: .9rem; font-weight: 600;
+  }
+  .sj-btn-primary { background: var(--primary, #7c6af7); color: white; }
+  .sj-btn-secondary { background: var(--mid, #2a2a3e); color: var(--text); }
+  .sj-btn-ghost { background: transparent; color: var(--muted); }
+
+  /* switch toggle (modal-only; admin view uses existing lbl-tog) */
+  .sj-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .sj-switch input { opacity: 0; width: 0; height: 0; }
+  .sj-switch-slider {
+    position: absolute; inset: 0; cursor: pointer;
+    background: var(--border, #555); border-radius: 22px;
+    transition: .2s;
+  }
+  .sj-switch-slider:before {
+    content: ''; position: absolute;
+    width: 16px; height: 16px; left: 3px; bottom: 3px;
+    background: white; border-radius: 50%; transition: .2s;
+  }
+  .sj-switch input:checked + .sj-switch-slider { background: var(--primary, #7c6af7); }
+  .sj-switch input:checked + .sj-switch-slider:before { transform: translateX(18px); }
+  .sj-switch-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
 `;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -554,6 +614,19 @@ function toChartMs(ts) {
 
 // ── Main custom element ───────────────────────────────────────────────────────
 
+function _shouldPromptSchedule(schedule, masterEnabled) {
+  if (!masterEnabled) return false;
+  if (!schedule) return true;
+  if (schedule.never_ask) return false;
+  if (schedule.enabled) return false;
+  if (schedule.last_declined_at) {
+    const declinedMs = new Date(schedule.last_declined_at).getTime();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    if (Date.now() - declinedMs < weekMs) return false;
+  }
+  return true;
+}
+
 class HomeSickCard extends HTMLElement {
   constructor() {
     super();
@@ -576,6 +649,8 @@ class HomeSickCard extends HTMLElement {
       mood: null,
       tags: new Set(),
       charts: {},          // apex instances keyed by id
+      schedulesByPerson: {}, // personId → { medKey: schedule }
+      remindersEnabled: true,
     };
     this._toast = null;
   }
@@ -592,10 +667,17 @@ class HomeSickCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const firstTime = this._hass === null;
     this._hass = hass;
     // Initial load
     if (this._state.loading) {
       this._loadPersons();
+    }
+    if (firstTime) {
+      // Fetch reminder masterswitch state once
+      this._fetchRemindersEnabled().then(enabled => {
+        this._state.remindersEnabled = enabled;
+      });
     }
   }
 
@@ -718,6 +800,288 @@ class HomeSickCard extends HTMLElement {
         this._loadPersons();
       }
     }, 800);
+  }
+
+  // ── Reminder schedules ──────────────────────────────────────────────────
+
+  async _fetchRemindersEnabled() {
+    try {
+      const resp = await this._hass.fetchWithAuth("/api/homesick/settings");
+      const data = await resp.json();
+      return data.reminders_enabled !== false;
+    } catch (_) {
+      return true; // fail open
+    }
+  }
+
+  async _fetchSchedules(personId) {
+    try {
+      const resp = await this._hass.fetchWithAuth(`/api/homesick/schedules/${personId}`);
+      const arr = await resp.json();
+      return (arr || []).reduce((acc, s) => {
+        acc[s.medicine_name.trim().toLowerCase().replace(/ /g, "_")] = s;
+        return acc;
+      }, {});
+    } catch (_) {
+      return {};
+    }
+  }
+
+  async _refreshSchedules(personId) {
+    const schedules = await this._fetchSchedules(personId);
+    const masterEnabled = await this._fetchRemindersEnabled();
+    this._state.schedulesByPerson[personId] = schedules;
+    this._state.remindersEnabled = masterEnabled;
+    this._render();
+  }
+
+  async _afterDoseLogged(personId, medicineName) {
+    const [schedules, masterEnabled] = await Promise.all([
+      this._fetchSchedules(personId),
+      this._fetchRemindersEnabled(),
+    ]);
+    const key = medicineName.trim().toLowerCase().replace(/ /g, "_");
+    const schedule = schedules[key] || null;
+    if (_shouldPromptSchedule(schedule, masterEnabled)) {
+      this._showSchedulePrompt(personId, medicineName, schedule);
+    }
+  }
+
+  _showSchedulePrompt(personId, medicineName, existingSchedule) {
+    const modal = document.createElement("div");
+    modal.className = "sj-modal-overlay";
+    modal.innerHTML = `
+      <div class="sj-modal">
+        <h3>Påminnelse för ${medicineName}?</h3>
+        <p>Vill du lägga upp ett påminnelseschema?</p>
+        <div class="sj-modal-actions">
+          <button class="sj-btn sj-btn-primary" id="sj-prompt-yes">Ja</button>
+          <button class="sj-btn sj-btn-secondary" id="sj-prompt-no">Nej</button>
+        </div>
+      </div>
+    `;
+    this.shadowRoot.appendChild(modal);
+    modal.querySelector("#sj-prompt-yes").addEventListener("click", () => {
+      modal.remove();
+      this._showScheduleEditor(personId, medicineName, existingSchedule);
+    });
+    modal.querySelector("#sj-prompt-no").addEventListener("click", () => {
+      modal.remove();
+      this._callService("decline_reminder", {
+        person_id: personId,
+        medicine_name: medicineName,
+      });
+    });
+  }
+
+  _renderRemindersSection(person, schedules) {
+    const activeSchedules = Object.values(schedules).filter(s => s && (s.enabled || s.frequency));
+    const masterOff = !this._state.remindersEnabled;
+
+    // Today's upcoming doses
+    const now = new Date();
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+    const doseRows = [];
+    for (const sched of Object.values(schedules)) {
+      if (!sched || !sched.enabled) continue;
+      for (const dose of sched.upcoming_doses || []) {
+        const dt = new Date(dose.scheduled_at);
+        if (dt > todayEnd) continue;
+        if (dt < new Date(now.getTime() - 12 * 3600 * 1000)) continue; // hide very old
+        doseRows.push({ sched, dose, dt });
+      }
+    }
+    doseRows.sort((a, b) => a.dt - b.dt);
+
+    const doseList = doseRows.length
+      ? el("div", { style: { display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" } },
+          ...doseRows.map(({ sched, dose, dt }) => {
+            const timeStr = dt.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+            const statusEl = dose.status === "taken"
+              ? el("span", { style: { color: "var(--green, #22c55e)", fontWeight: "600", fontSize: "13px" } }, "✓ Tagen")
+              : dose.status === "missed"
+                ? el("span", { style: { color: "var(--red)", fontWeight: "600", fontSize: "13px" } }, "✗ Missad")
+                : el("button", { className: "btn", style: { padding: "4px 10px", fontSize: "12px" },
+                    onClick: async () => {
+                      await this._callService("confirm_dose", {
+                        person_id: person.id,
+                        medicine_name: sched.medicine_name,
+                        dose_id: dose.id,
+                      });
+                      this._showToast("Dos markerad ✓");
+                      this._refreshSchedules(person.id);
+                    }
+                  }, "Markera tagen");
+            return el("div", { style: { display: "flex", alignItems: "center", gap: "12px", padding: "6px 10px", background: "var(--mid)", borderRadius: "6px" } },
+              el("span", { style: { fontWeight: "600", minWidth: "48px" } }, timeStr),
+              el("span", { style: { flex: 1 } }, sched.medicine_name),
+              statusEl,
+            );
+          }))
+      : null;
+
+    // Schedule management rows
+    const schedRows = activeSchedules.length
+      ? el("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } },
+          ...activeSchedules.map(s => {
+            const toggle = el("input", { type: "checkbox", style: { marginRight: "8px" } });
+            toggle.checked = !!s.enabled;
+            toggle.addEventListener("change", () => {
+              this._callService("toggle_schedule", {
+                person_id: person.id,
+                medicine_name: s.medicine_name,
+                enabled: toggle.checked,
+              });
+            });
+            const neverAsk = el("input", { type: "checkbox", style: { marginRight: "4px" } });
+            neverAsk.checked = !!s.never_ask;
+            neverAsk.addEventListener("change", () => {
+              this._callService("set_never_ask", {
+                person_id: person.id,
+                medicine_name: s.medicine_name,
+                value: neverAsk.checked,
+              });
+            });
+            const freqTxt = s.frequency?.type === "daily" ? "varje dag"
+              : s.frequency?.type === "multiple_daily" ? "flera/dag"
+              : s.frequency?.type === "every_n_days" ? `var ${s.frequency.every_n_days||"?"}:e dag`
+              : "—";
+            return el("div", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "8px", background: "var(--mid)", borderRadius: "6px", flexWrap: "wrap" } },
+              toggle,
+              el("div", { style: { flex: 1, minWidth: "140px" } },
+                el("div", { style: { fontWeight: "600" } }, s.medicine_name),
+                el("div", { style: { fontSize: "11px", color: "var(--muted)" } }, freqTxt),
+              ),
+              el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
+                onClick: () => this._showScheduleEditor(person.id, s.medicine_name, s)
+              }, "✏️ Redigera"),
+              el("label", { style: { display: "flex", alignItems: "center", fontSize: "12px", color: "var(--muted)", gap: "2px" } },
+                neverAsk, "Fråga aldrig"),
+            );
+          }))
+      : el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "Inga aktiva scheman. Logga en medicin för att lägga upp ett.");
+
+    return el("div", { className: "card" },
+      el("div", { className: "card-title" },
+        "⏰ Påminnelser",
+        masterOff ? el("span", { style: { marginLeft: "8px", fontSize: "12px", color: "var(--red)" } }, "(masterswitch AV)") : null,
+      ),
+      doseList,
+      schedRows,
+    );
+  }
+
+  _showScheduleEditor(personId, medicineName, existing) {
+    const f = existing?.frequency || {};
+    const end = existing?.end || { type: "none" };
+    const modal = document.createElement("div");
+    modal.className = "sj-modal-overlay";
+    modal.innerHTML = `
+      <div class="sj-modal sj-schedule-editor">
+        <h3>Schema: ${medicineName}</h3>
+
+        <label>Frekvens</label>
+        <select id="sj-freq-type">
+          <option value="daily" ${f.type==="daily"?"selected":""}>Varje dag</option>
+          <option value="multiple_daily" ${f.type==="multiple_daily"?"selected":""}>Flera gånger om dagen</option>
+          <option value="every_n_days" ${f.type==="every_n_days"?"selected":""}>Var n:te dag</option>
+        </select>
+
+        <div id="sj-times-section">
+          <label>Klockslag (ett per rad, HH:MM)</label>
+          <textarea id="sj-times" rows="3">${(f.times||["08:00"]).join("\n")}</textarea>
+        </div>
+
+        <div id="sj-interval-section" style="display:none">
+          <label>Intervall (timmar)</label>
+          <input type="number" id="sj-interval" min="1" max="24" value="${f.interval_hours||8}">
+        </div>
+
+        <div id="sj-ndays-section" style="display:none">
+          <label>Var n:te dag</label>
+          <input type="number" id="sj-ndays" min="2" max="90" value="${f.every_n_days||2}">
+        </div>
+
+        <label>Slutar</label>
+        <select id="sj-end-type">
+          <option value="none" ${end.type==="none"?"selected":""}>Inget slutdatum</option>
+          <option value="date" ${end.type==="date"?"selected":""}>Datum</option>
+          <option value="dose_count" ${end.type==="dose_count"?"selected":""}>Antal doser</option>
+        </select>
+        <div id="sj-end-date-section" style="display:none">
+          <input type="date" id="sj-end-date" value="${end.date||""}">
+        </div>
+        <div id="sj-end-count-section" style="display:none">
+          <input type="number" id="sj-end-count" min="1" value="${end.dose_count||7}">
+        </div>
+
+        <div class="sj-switch-row">
+          <label>Notiser</label>
+          <label class="sj-switch">
+            <input type="checkbox" id="sj-notif" ${existing?.notifications_on!==false?"checked":""}>
+            <span class="sj-switch-slider"></span>
+          </label>
+        </div>
+
+        <label>Notifieringsmål (t.ex. mobile_app_anna_phone)</label>
+        <input type="text" id="sj-notify-target"
+          placeholder="lämna tomt för default (notify.notify)"
+          value="${existing?.notify_target || ""}">
+
+        <div class="sj-modal-actions">
+          <button class="sj-btn sj-btn-primary" id="sj-sched-save">Spara</button>
+          <button class="sj-btn sj-btn-ghost" id="sj-sched-cancel">Avbryt</button>
+        </div>
+      </div>
+    `;
+    this.shadowRoot.appendChild(modal);
+
+    const freqSel = modal.querySelector("#sj-freq-type");
+    const endSel = modal.querySelector("#sj-end-type");
+    const updateFreqUI = () => {
+      const v = freqSel.value;
+      modal.querySelector("#sj-interval-section").style.display = v === "multiple_daily" ? "" : "none";
+      modal.querySelector("#sj-ndays-section").style.display = v === "every_n_days" ? "" : "none";
+    };
+    const updateEndUI = () => {
+      const v = endSel.value;
+      modal.querySelector("#sj-end-date-section").style.display = v === "date" ? "" : "none";
+      modal.querySelector("#sj-end-count-section").style.display = v === "dose_count" ? "" : "none";
+    };
+    freqSel.addEventListener("change", updateFreqUI);
+    endSel.addEventListener("change", updateEndUI);
+    updateFreqUI(); updateEndUI();
+
+    modal.querySelector("#sj-sched-cancel").addEventListener("click", () => modal.remove());
+    modal.querySelector("#sj-sched-save").addEventListener("click", () => {
+      const freqType = freqSel.value;
+      const times = modal.querySelector("#sj-times").value
+        .split("\n").map(t => t.trim()).filter(Boolean);
+      const intervalHours = parseInt(modal.querySelector("#sj-interval").value) || null;
+      const nDays = parseInt(modal.querySelector("#sj-ndays").value) || null;
+      const endType = endSel.value;
+      const endDate = modal.querySelector("#sj-end-date").value || null;
+      const endCount = parseInt(modal.querySelector("#sj-end-count").value) || null;
+      const notifOn = modal.querySelector("#sj-notif").checked;
+      const notifyTarget = modal.querySelector("#sj-notify-target").value.trim() || null;
+
+      this._callService("create_schedule", {
+        person_id: personId,
+        medicine_name: medicineName,
+        frequency: {
+          type: freqType,
+          times,
+          interval_hours: freqType === "multiple_daily" ? intervalHours : null,
+          every_n_days: freqType === "every_n_days" ? nDays : null,
+        },
+        end: { type: endType, date: endDate, dose_count: endCount },
+        notifications_on: notifOn,
+        notify_target: notifyTarget,
+      });
+      this._showToast("Schema sparat ✓");
+      modal.remove();
+    });
   }
 
   // ── Routing ───────────────────────────────────────────────────────────────
@@ -1411,9 +1775,20 @@ class HomeSickCard extends HTMLElement {
             note: noteInput.value,
           });
           this._showToast(isSkipped ? "Skipped dose logged ✓" : "Medication logged ✓");
+          if (!isSkipped) {
+            this._afterDoseLogged(person.id, name);
+          }
         }
       }, "💊 Log dose"),
     ));
+
+    // Reminders section (schedules + today's upcoming doses)
+    const schedules = this._state.schedulesByPerson[person.id];
+    if (schedules === undefined) {
+      // Trigger async load on first render of this tab
+      this._refreshSchedules(person.id);
+    }
+    frag.appendChild(this._renderRemindersSection(person, schedules || {}));
 
     // History
     const meds = (person.medications || [])
@@ -1719,6 +2094,28 @@ class HomeSickCard extends HTMLElement {
         }, el("div", { className: "lbl-tog-knob" })),
         el("span", { style: { fontSize: "13px", color: isImperial() ? "var(--text)" : "var(--muted)" } }, "Imperial"),
       ),
+    ));
+
+    // Reminder masterswitch
+    const masterEnabled = this._state.remindersEnabled;
+    const remTrack = el("div", { className: `lbl-tog-track${masterEnabled ? " on" : ""}`, style: { cursor: "pointer" },
+      onClick: () => {
+        const newVal = !this._state.remindersEnabled;
+        this._state.remindersEnabled = newVal;
+        this._callService("set_reminders_enabled", { enabled: newVal });
+        this._showToast(newVal ? "Påminnelser AKTIVERADE" : "Påminnelser AVAKTIVERADE");
+        this._render();
+      }
+    }, el("div", { className: "lbl-tog-knob" }));
+    scroll.appendChild(el("div", { className: "card" },
+      el("div", { className: "card-title" }, "⏰ Medicinpåminnelser"),
+      el("div", { style: { display: "flex", alignItems: "center", gap: "12px" } },
+        el("span", { style: { fontSize: "13px", color: masterEnabled ? "var(--muted)" : "var(--text)" } }, "Av"),
+        remTrack,
+        el("span", { style: { fontSize: "13px", color: masterEnabled ? "var(--text)" : "var(--muted)" } }, "På"),
+      ),
+      el("div", { style: { fontSize: "12px", color: "var(--muted)", marginTop: "8px" } },
+        "Stänger av alla notifieringar utan att radera scheman."),
     ));
 
     return el("div", { style: { display: "flex", flexDirection: "column", height: "100%" } }, topbar, scroll);
