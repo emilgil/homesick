@@ -28,6 +28,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import CONF_PERSON_BIRTH_DATE, CONF_PERSON_GENDER, CONF_PERSON_NAME, DOMAIN
 from .coordinator import HomeSickCoordinator
+from .reminders import ReminderEngine
 from .services import async_register_services
 from .storage import HomeSickStore
 
@@ -90,6 +91,12 @@ async def async_setup_entry(
     # 8. Copy Lovelace card JS into www/ and register the resource
     await _async_ensure_frontend(hass)
     await _async_register_lovelace_resource(hass)
+
+    # 9. Boot reminder engine
+    engine = ReminderEngine(hass, store)
+    hass.data.setdefault(DOMAIN, {})["reminder_engine"] = engine
+    person_ids = [p["id"] for p in await store.async_get_persons(active_only=True)]
+    await engine.async_boot(person_ids)
 
     _LOGGER.info("HomeSick: setup complete")
     return True
@@ -240,6 +247,10 @@ async def async_unload_entry(
     entry: HomeSickConfigEntry,
 ) -> bool:
     """Unload a config entry."""
+    engine = hass.data.get(DOMAIN, {}).pop("reminder_engine", None)
+    if engine:
+        await engine.async_teardown()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
@@ -255,6 +266,12 @@ async def async_unload_entry(
                 "get_summary",
                 "delete_person",
                 "activate_person",
+                "create_schedule",
+                "toggle_schedule",
+                "confirm_dose",
+                "set_never_ask",
+                "decline_reminder",
+                "set_reminders_enabled",
             ):
                 hass.services.async_remove(DOMAIN, service)
 
