@@ -89,9 +89,16 @@ class HomeSickStore:
         """Load data from disk, returning a fresh skeleton if nothing exists yet."""
         data = await self._store.async_load()
         if data is None:
-            data = {"persons": {}, "medication_list": list(DEFAULT_MEDICATIONS)}
-        # Ensure medication_list exists for older storage versions
+            data = {
+                "persons": {},
+                "medication_list": list(DEFAULT_MEDICATIONS),
+                "schedules": {},
+                "reminders_enabled": True,
+            }
+        # Ensure keys exist for older storage versions
         data.setdefault("medication_list", list(DEFAULT_MEDICATIONS))
+        data.setdefault("schedules", {})
+        data.setdefault("reminders_enabled", True)
         return data
 
     async def async_save(self, data: dict[str, Any]) -> None:
@@ -434,3 +441,135 @@ class HomeSickStore:
             "medications": medications,
             "wellbeing": wellbeing,
         }
+
+    # ── Reminder schedules ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _normalize_med(name: str) -> str:
+        return name.strip().lower().replace(" ", "_")
+
+    async def async_get_schedule(
+        self, person_id: str, medicine_name: str
+    ) -> dict | None:
+        data = await self.async_load()
+        key = self._normalize_med(medicine_name)
+        return (
+            data.get("schedules", {})
+            .get(person_id, {})
+            .get(key)
+        )
+
+    async def async_save_schedule(self, schedule: dict) -> None:
+        data = await self.async_load()
+        person_id = schedule["person_id"]
+        key = self._normalize_med(schedule["medicine_name"])
+        data.setdefault("schedules", {}).setdefault(person_id, {})[key] = schedule
+        await self.async_save(data)
+
+    async def async_get_all_schedules_for_person(
+        self, person_id: str
+    ) -> list[dict]:
+        data = await self.async_load()
+        return list(
+            data.get("schedules", {}).get(person_id, {}).values()
+        )
+
+    async def async_set_never_ask(
+        self, person_id: str, medicine_name: str, value: bool
+    ) -> None:
+        from datetime import datetime, timezone
+        UTC = timezone.utc
+        sched = await self.async_get_schedule(person_id, medicine_name)
+        if sched is None:
+            sched = {
+                "id": f"sched_{person_id}_{self._normalize_med(medicine_name)}",
+                "person_id": person_id,
+                "medicine_name": medicine_name,
+                "enabled": False,
+                "notifications_on": False,
+                "never_ask": value,
+                "last_declined_at": None,
+                "notify_target": None,
+                "frequency": None,
+                "end": {"type": "none", "date": None, "dose_count": None, "doses_taken": 0},
+                "missed_window_minutes": 120,
+                "created_at": datetime.now(UTC).isoformat(),
+                "upcoming_doses": [],
+            }
+        else:
+            sched["never_ask"] = value
+        await self.async_save_schedule(sched)
+
+    async def async_set_last_declined(
+        self, person_id: str, medicine_name: str
+    ) -> None:
+        from datetime import datetime, timezone
+        UTC = timezone.utc
+        sched = await self.async_get_schedule(person_id, medicine_name)
+        if sched is None:
+            sched = {
+                "id": f"sched_{person_id}_{self._normalize_med(medicine_name)}",
+                "person_id": person_id,
+                "medicine_name": medicine_name,
+                "enabled": False,
+                "notifications_on": False,
+                "never_ask": False,
+                "last_declined_at": datetime.now(UTC).isoformat(),
+                "notify_target": None,
+                "frequency": None,
+                "end": {"type": "none", "date": None, "dose_count": None, "doses_taken": 0},
+                "missed_window_minutes": 120,
+                "created_at": datetime.now(UTC).isoformat(),
+                "upcoming_doses": [],
+            }
+        else:
+            sched["last_declined_at"] = datetime.now(UTC).isoformat()
+        await self.async_save_schedule(sched)
+
+    async def async_confirm_dose(
+        self, person_id: str, medicine_name: str, dose_id: str
+    ) -> bool:
+        from datetime import datetime, timezone
+        UTC = timezone.utc
+        sched = await self.async_get_schedule(person_id, medicine_name)
+        if sched is None:
+            return False
+        for dose in sched.get("upcoming_doses", []):
+            if dose["id"] == dose_id and dose["status"] == "pending":
+                dose["status"] = "taken"
+                dose["taken_at"] = datetime.now(UTC).isoformat()
+                sched["end"]["doses_taken"] = sched["end"].get("doses_taken", 0) + 1
+                break
+        end = sched["end"]
+        finished = (
+            end["type"] == "dose_count"
+            and end["doses_taken"] >= end["dose_count"]
+        )
+        if finished:
+            sched["enabled"] = False
+        await self.async_save_schedule(sched)
+        return finished
+
+    async def async_mark_dose_missed(
+        self, person_id: str, medicine_name: str, dose_id: str
+    ) -> None:
+        sched = await self.async_get_schedule(person_id, medicine_name)
+        if sched is None:
+            return
+        changed = False
+        for dose in sched.get("upcoming_doses", []):
+            if dose["id"] == dose_id and dose["status"] == "pending":
+                dose["status"] = "missed"
+                changed = True
+                break
+        if changed:
+            await self.async_save_schedule(sched)
+
+    async def async_get_reminders_enabled(self) -> bool:
+        data = await self.async_load()
+        return data.get("reminders_enabled", True)
+
+    async def async_set_reminders_enabled(self, value: bool) -> None:
+        data = await self.async_load()
+        data["reminders_enabled"] = value
+        await self.async_save(data)
