@@ -111,6 +111,57 @@ ACTIVATE_PERSON_SCHEMA = vol.Schema({
     vol.Required(ATTR_PERSON_ID): cv.string,
 })
 
+# ── Reminder schemas ─────────────────────────────────────────────────────────
+SCHEDULE_FREQUENCY_SCHEMA = vol.Schema({
+    vol.Required("type"): vol.In(["daily", "multiple_daily", "every_n_days"]),
+    vol.Optional("times", default=["08:00"]): [str],
+    vol.Optional("interval_hours"): vol.Any(None, vol.Coerce(int)),
+    vol.Optional("every_n_days"): vol.Any(None, vol.Coerce(int)),
+})
+
+SCHEDULE_END_SCHEMA = vol.Schema({
+    vol.Required("type", default="none"): vol.In(["none", "date", "dose_count"]),
+    vol.Optional("date"): vol.Any(None, str),
+    vol.Optional("dose_count"): vol.Any(None, vol.Coerce(int)),
+})
+
+CREATE_SCHEDULE_SCHEMA = vol.Schema({
+    vol.Required("person_id"): cv.string,
+    vol.Required("medicine_name"): cv.string,
+    vol.Required("frequency"): SCHEDULE_FREQUENCY_SCHEMA,
+    vol.Optional("end"): SCHEDULE_END_SCHEMA,
+    vol.Optional("notifications_on", default=True): cv.boolean,
+    vol.Optional("notify_target"): vol.Any(None, cv.string),
+    vol.Optional("missed_window_minutes", default=120): vol.Coerce(int),
+})
+
+TOGGLE_SCHEDULE_SCHEMA = vol.Schema({
+    vol.Required("person_id"): cv.string,
+    vol.Required("medicine_name"): cv.string,
+    vol.Required("enabled"): cv.boolean,
+})
+
+CONFIRM_DOSE_SCHEMA = vol.Schema({
+    vol.Required("person_id"): cv.string,
+    vol.Required("medicine_name"): cv.string,
+    vol.Required("dose_id"): cv.string,
+})
+
+SET_NEVER_ASK_SCHEMA = vol.Schema({
+    vol.Required("person_id"): cv.string,
+    vol.Required("medicine_name"): cv.string,
+    vol.Required("value"): cv.boolean,
+})
+
+DECLINE_REMINDER_SCHEMA = vol.Schema({
+    vol.Required("person_id"): cv.string,
+    vol.Required("medicine_name"): cv.string,
+})
+
+SET_REMINDERS_ENABLED_SCHEMA = vol.Schema({
+    vol.Required("enabled"): cv.boolean,
+})
+
 
 # ── Registration ─────────────────────────────────────────────────────────────
 
@@ -164,6 +215,11 @@ async def async_register_services(
                 data[ATTR_PERSON_ID],
             )
             await coordinator.async_request_refresh()
+            engine = hass.data.get(DOMAIN, {}).get("reminder_engine")
+            if engine:
+                await engine.async_auto_confirm_nearest(
+                    data[ATTR_PERSON_ID], data[ATTR_MEDICATION]
+                )
 
     async def handle_add_symptom(call: ServiceCall) -> None:
         data = call.data
@@ -254,6 +310,93 @@ async def async_register_services(
             },
         )
 
+    # ── Reminder handlers ────────────────────────────────────────────────
+
+    async def handle_create_schedule(call: ServiceCall) -> None:
+        import uuid as _uuid
+        from datetime import datetime, timezone
+        data = call.data
+        engine = hass.data[DOMAIN].get("reminder_engine")
+        existing = await store.async_get_schedule(
+            data["person_id"], data["medicine_name"]
+        )
+        end_raw = data.get("end", {"type": "none"})
+        schedule = {
+            "id": existing["id"] if existing else f"sched_{_uuid.uuid4().hex[:8]}",
+            "person_id": data["person_id"],
+            "medicine_name": data["medicine_name"],
+            "enabled": True,
+            "notifications_on": data.get("notifications_on", True),
+            "notify_target": (
+                data.get("notify_target")
+                if "notify_target" in data
+                else (existing.get("notify_target") if existing else None)
+            ),
+            "never_ask": existing.get("never_ask", False) if existing else False,
+            "last_declined_at": existing.get("last_declined_at") if existing else None,
+            "frequency": data["frequency"],
+            "end": {
+                "type": end_raw.get("type", "none"),
+                "date": end_raw.get("date"),
+                "dose_count": end_raw.get("dose_count"),
+                "doses_taken": existing["end"].get("doses_taken", 0) if existing else 0,
+            },
+            "missed_window_minutes": data.get("missed_window_minutes", 120),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "upcoming_doses": [],
+        }
+        if engine:
+            await engine.async_activate_schedule(schedule)
+        else:
+            await store.async_save_schedule(schedule)
+
+    async def handle_toggle_schedule(call: ServiceCall) -> None:
+        data = call.data
+        engine = hass.data[DOMAIN].get("reminder_engine")
+        if data["enabled"]:
+            sched = await store.async_get_schedule(
+                data["person_id"], data["medicine_name"]
+            )
+            if sched and engine:
+                await engine.async_activate_schedule(sched)
+        elif engine:
+            await engine.async_deactivate_schedule(
+                data["person_id"], data["medicine_name"]
+            )
+
+    async def handle_confirm_dose(call: ServiceCall) -> None:
+        data = call.data
+        engine = hass.data[DOMAIN].get("reminder_engine")
+        if engine:
+            await engine.async_manual_confirm(
+                data["person_id"], data["medicine_name"], data["dose_id"]
+            )
+            await coordinator.async_request_refresh()
+
+    async def handle_set_never_ask(call: ServiceCall) -> None:
+        data = call.data
+        await store.async_set_never_ask(
+            data["person_id"], data["medicine_name"], data["value"]
+        )
+
+    async def handle_decline_reminder(call: ServiceCall) -> None:
+        data = call.data
+        await store.async_set_last_declined(
+            data["person_id"], data["medicine_name"]
+        )
+
+    async def handle_set_reminders_enabled(call: ServiceCall) -> None:
+        enabled = call.data["enabled"]
+        engine = hass.data[DOMAIN].get("reminder_engine")
+        await store.async_set_reminders_enabled(enabled)
+        if enabled and engine:
+            person_ids = [
+                p["id"] for p in await store.async_get_persons(active_only=True)
+            ]
+            await engine.async_boot(person_ids)
+        elif not enabled and engine:
+            await engine.async_teardown()
+
     hass.services.async_register(
         DOMAIN, "log_measurement", handle_log_measurement, schema=LOG_MEASUREMENT_SCHEMA
     )
@@ -278,8 +421,27 @@ async def async_register_services(
     hass.services.async_register(
         DOMAIN, "activate_person", handle_activate_person, schema=ACTIVATE_PERSON_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN, "create_schedule", handle_create_schedule, schema=CREATE_SCHEDULE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "toggle_schedule", handle_toggle_schedule, schema=TOGGLE_SCHEDULE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "confirm_dose", handle_confirm_dose, schema=CONFIRM_DOSE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "set_never_ask", handle_set_never_ask, schema=SET_NEVER_ASK_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "decline_reminder", handle_decline_reminder, schema=DECLINE_REMINDER_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "set_reminders_enabled", handle_set_reminders_enabled,
+        schema=SET_REMINDERS_ENABLED_SCHEMA,
+    )
 
-    _LOGGER.debug("HomeSick: registered 8 services")
+    _LOGGER.debug("HomeSick: registered 14 services")
 
 
 def _format_summary(summary: dict[str, Any]) -> str:
