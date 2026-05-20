@@ -655,6 +655,7 @@ class HomeSickCard extends HTMLElement {
       pendingSchedulePrompt: null, // { personId, medicineName, schedule } — survives re-renders
       medCatalog: [],       // [{ name, default_dose, default_unit }] — global catalog
       medCatalogLoaded: false,
+      deleteScheduleConfirm: null, // medicine_name of a schedule pending delete confirmation
     };
     this._toast = null;
   }
@@ -938,17 +939,42 @@ class HomeSickCard extends HTMLElement {
               : s.frequency?.type === "multiple_daily" ? "flera/dag"
               : s.frequency?.type === "every_n_days" ? `var ${s.frequency.every_n_days||"?"}:e dag`
               : "—";
+            const isDeleting = this._state.deleteScheduleConfirm === s.medicine_name;
+            const actions = isDeleting
+              ? el("div", { style: { display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" } },
+                  el("span", { style: { fontSize: "12px", color: "var(--red)" } }, "Radera schema?"),
+                  el("button", { className: "btn", style: { background: "var(--red)", color: "#fff", padding: "4px 10px", fontSize: "12px" },
+                    onClick: async () => {
+                      this._state.deleteScheduleConfirm = null;
+                      await this._callService("delete_schedule", {
+                        person_id: person.id,
+                        medicine_name: s.medicine_name,
+                      });
+                      this._showToast("Schema raderat");
+                      this._refreshSchedules(person.id);
+                    }
+                  }, "Ja"),
+                  el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
+                    onClick: () => { this._state.deleteScheduleConfirm = null; this._render(); }
+                  }, "Nej"),
+                )
+              : el("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexWrap: "wrap" } },
+                  el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
+                    onClick: () => this._showScheduleEditor(person.id, s.medicine_name, s)
+                  }, "✏️ Redigera"),
+                  el("button", { className: "btn-icon btn-danger",
+                    onClick: () => { this._state.deleteScheduleConfirm = s.medicine_name; this._render(); }
+                  }, "🗑"),
+                  el("label", { style: { display: "flex", alignItems: "center", fontSize: "12px", color: "var(--muted)", gap: "2px" } },
+                    neverAsk, "Fråga aldrig"),
+                );
             return el("div", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "8px", background: "var(--s1)", borderRadius: "6px", flexWrap: "wrap" } },
               toggle,
               el("div", { style: { flex: 1, minWidth: "140px" } },
                 el("div", { style: { fontWeight: "600" } }, s.medicine_name),
                 el("div", { style: { fontSize: "11px", color: "var(--muted)" } }, freqTxt),
               ),
-              el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
-                onClick: () => this._showScheduleEditor(person.id, s.medicine_name, s)
-              }, "✏️ Redigera"),
-              el("label", { style: { display: "flex", alignItems: "center", fontSize: "12px", color: "var(--muted)", gap: "2px" } },
-                neverAsk, "Fråga aldrig"),
+              actions,
             );
           }))
       : el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "Inga aktiva scheman. Logga en medicin för att lägga upp ett.");
