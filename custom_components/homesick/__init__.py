@@ -318,6 +318,7 @@ async def async_unload_entry(
                 "activate_person",
                 "create_schedule",
                 "toggle_schedule",
+                "delete_schedule",
                 "confirm_dose",
                 "set_never_ask",
                 "decline_reminder",
