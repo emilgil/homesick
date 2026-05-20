@@ -916,21 +916,23 @@ class HomeSickCard extends HTMLElement {
           ...activeSchedules.map(s => {
             const toggle = el("input", { type: "checkbox", style: { marginRight: "8px" } });
             toggle.checked = !!s.enabled;
-            toggle.addEventListener("change", () => {
-              this._callService("toggle_schedule", {
+            toggle.addEventListener("change", async () => {
+              await this._callService("toggle_schedule", {
                 person_id: person.id,
                 medicine_name: s.medicine_name,
                 enabled: toggle.checked,
               });
+              this._refreshSchedules(person.id);
             });
             const neverAsk = el("input", { type: "checkbox", style: { marginRight: "4px" } });
             neverAsk.checked = !!s.never_ask;
-            neverAsk.addEventListener("change", () => {
-              this._callService("set_never_ask", {
+            neverAsk.addEventListener("change", async () => {
+              await this._callService("set_never_ask", {
                 person_id: person.id,
                 medicine_name: s.medicine_name,
                 value: neverAsk.checked,
               });
+              this._refreshSchedules(person.id);
             });
             const freqTxt = s.frequency?.type === "daily" ? "varje dag"
               : s.frequency?.type === "multiple_daily" ? "flera/dag"
@@ -1043,7 +1045,7 @@ class HomeSickCard extends HTMLElement {
     updateFreqUI(); updateEndUI();
 
     modal.querySelector("#sj-sched-cancel").addEventListener("click", () => modal.remove());
-    modal.querySelector("#sj-sched-save").addEventListener("click", () => {
+    modal.querySelector("#sj-sched-save").addEventListener("click", async () => {
       const freqType = freqSel.value;
       const times = modal.querySelector("#sj-times").value
         .split("\n").map(t => t.trim()).filter(Boolean);
@@ -1055,7 +1057,8 @@ class HomeSickCard extends HTMLElement {
       const notifOn = modal.querySelector("#sj-notif").checked;
       const notifyTarget = modal.querySelector("#sj-notify-target").value.trim() || null;
 
-      this._callService("create_schedule", {
+      modal.remove();
+      await this._callService("create_schedule", {
         person_id: personId,
         medicine_name: medicineName,
         frequency: {
@@ -1069,7 +1072,7 @@ class HomeSickCard extends HTMLElement {
         notify_target: notifyTarget,
       });
       this._showToast("Schema sparat ✓");
-      modal.remove();
+      this._refreshSchedules(personId);
     });
   }
 
