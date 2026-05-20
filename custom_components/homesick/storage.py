@@ -476,6 +476,19 @@ class HomeSickStore:
             data.get("schedules", {}).get(person_id, {}).values()
         )
 
+    async def async_delete_schedule(
+        self, person_id: str, medicine_name: str
+    ) -> bool:
+        """Remove a schedule entirely. Returns True if one was deleted."""
+        data = await self.async_load()
+        key = self._normalize_med(medicine_name)
+        person_schedules = data.get("schedules", {}).get(person_id, {})
+        if key not in person_schedules:
+            return False
+        del person_schedules[key]
+        await self.async_save(data)
+        return True
+
     async def async_set_never_ask(
         self, person_id: str, medicine_name: str, value: bool
     ) -> None:
