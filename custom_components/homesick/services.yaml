@@ -217,3 +217,164 @@ get_summary:
           min: 1
           max: 720
           mode: box
+
+delete_person:
+  name: Delete person
+  description: Permanently delete a person, or deactivate them while keeping history.
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+    keep_history:
+      name: Keep history
+      description: If true, the person is deactivated (hidden) but their history is kept. If false, they are deleted permanently.
+      required: false
+      selector:
+        boolean:
+
+activate_person:
+  name: Activate person
+  description: Reactivate a previously deactivated person.
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+
+create_schedule:
+  name: Create medication schedule
+  description: Create or replace a medication reminder schedule for a person.
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+    medicine_name:
+      name: Medicine name
+      required: true
+      example: Metformin
+      selector:
+        text:
+    frequency:
+      name: Frequency
+      description: 'Object: type (daily/multiple_daily/every_n_days), times list, interval_hours, every_n_days.'
+      required: true
+      selector:
+        object:
+    end:
+      name: End condition
+      description: 'Optional object: type (none/date/dose_count), date, dose_count.'
+      required: false
+      selector:
+        object:
+    notifications_on:
+      name: Notifications on
+      required: false
+      selector:
+        boolean:
+    notify_target:
+      name: Notify target
+      description: HA notify service to use, e.g. mobile_app_anna_phone. Blank uses notify.notify.
+      required: false
+      example: mobile_app_anna_phone
+      selector:
+        text:
+    missed_window_minutes:
+      name: Missed-dose window (minutes)
+      description: Minutes after the scheduled time before a dose is marked missed.
+      required: false
+      example: 120
+      selector:
+        number:
+          min: 1
+          max: 1440
+          mode: box
+
+toggle_schedule:
+  name: Toggle medication schedule
+  description: Enable or pause a medication schedule without deleting it.
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+    medicine_name:
+      name: Medicine name
+      required: true
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+confirm_dose:
+  name: Confirm dose
+  description: Manually confirm a scheduled dose as taken.
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+    medicine_name:
+      name: Medicine name
+      required: true
+      selector:
+        text:
+    dose_id:
+      name: Dose ID
+      required: true
+      selector:
+        text:
+
+set_never_ask:
+  name: Set "never ask" for a medicine
+  description: Stop (or resume) prompting for a reminder schedule after logging this medicine.
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+    medicine_name:
+      name: Medicine name
+      required: true
+      selector:
+        text:
+    value:
+      name: Never ask
+      required: true
+      selector:
+        boolean:
+
+decline_reminder:
+  name: Decline reminder prompt
+  description: Record that the user declined a reminder schedule for a medicine (suppresses re-prompt for one week).
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+    medicine_name:
+      name: Medicine name
+      required: true
+      selector:
+        text:
+
+set_reminders_enabled:
+  name: Set reminders master switch
+  description: Globally enable or disable all medication reminders without deleting schedules.
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:

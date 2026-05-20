@@ -1,6 +1,6 @@
 # HomeSick — Installation Guide
 
-HomeSick is a Home Assistant custom integration for family health journaling. Log temperatures, medications, vitals, body metrics and wellbeing for multiple people — all from a single Lovelace card.
+HomeSick is a Home Assistant custom integration for family health journaling. Log temperatures, medications, vitals, body metrics and wellbeing for multiple people — all from a single Lovelace card. Set up medication reminder schedules with mobile push notifications and automatic missed-dose detection.
 
 ## ⚠️ Disclaimer
 
@@ -107,6 +107,39 @@ data:
   unit: "°C"
 ```
 
+---
+
+## Medication reminders
+
+HomeSick can remind you (or a family member) to take medication on a schedule, with Home Assistant mobile push notifications.
+
+### Setting up a schedule
+
+After you log a dose, the card asks whether you want a reminder schedule for that medicine. Choose **Ja** to open the schedule editor, where you set:
+
+- **Frequency** — every day, several times a day (fixed times or an hourly interval), or every N days
+- **Times** — one or more times of day (`HH:MM`)
+- **End** — never, by date, or after a fixed number of doses
+- **Notifications** — on/off
+- **Notify target** — the HA notify service to use, e.g. `mobile_app_anna_phone`. Leave blank to use the default `notify.notify`.
+
+If you choose **Nej**, HomeSick won't ask again for that medicine for one week. You can also set **"Fråga aldrig"** (never ask) per medicine in the Medication tab.
+
+### How reminders behave
+
+- At each scheduled time, a push notification is sent to the configured target.
+- If a dose isn't logged within the missed-dose window (default 2 hours), it's marked **missed** (shown in red, not counted as taken).
+- Logging a dose near a scheduled time **auto-confirms** that dose.
+- Schedules survive HA restarts.
+
+### Master switch
+
+**⚙ Manage → ⏰ Medicinpåminnelser** has a global on/off switch. Turning it off mutes *all* reminders and notifications without deleting any schedules. Turning it back on re-arms every active schedule.
+
+### Default dose
+
+Every time you log a medication with a dose, HomeSick remembers it as that medicine's default. The next time you pick the same medicine in the log form, the dose and unit are pre-filled. Logging a medicine *without* a dose does not overwrite the saved default.
+
 ## Finding the person UUID
 
 Go to Developer Tools → States → search `sensor.homesick_`
@@ -126,13 +159,16 @@ Values are always stored in metric internally. The unit toggle only affects disp
 
 ```
 custom_components/homesick/
-  __init__.py        Entry point, wires everything together
+  __init__.py        Entry point, wires everything together, REST endpoints
   config_flow.py     Setup wizard in HA UI
   const.py           Constants and measurement types
   coordinator.py     DataUpdateCoordinator, in-memory cache
+  reminders.py       Medication reminder engine (schedules, timers, notifications)
   sensor.py          HA sensor entities
-  services.py        8 HA services
+  services.py        14 HA services
+  services.yaml      Service descriptions for the HA UI
   storage.py         Local data storage (HA Store)
+  homesick-card.js   Lovelace custom card (copied to www/ on startup)
   strings.json       English UI strings
   translations/
     en.json          English
@@ -140,8 +176,6 @@ custom_components/homesick/
 
 www/homesick/
   homesick-card.js   Lovelace custom card (vanilla JS + ApexCharts)
-  logo.svg           Icon (no text)
-  logo_with_text.svg Full logo
 ```
 
 ---
