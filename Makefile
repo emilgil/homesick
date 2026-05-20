@@ -29,7 +29,7 @@ deploy-frontend:
 	$(SCP) -r www/homesick/ $(HA_USER)@$(HA_HOST):/config/www/
 
 restart:
-	curl -s -o /dev/null -w 'HTTP %{http_code}\n' -X POST $(HA_API)/services/homeassistant/restart \
+	@curl -s -o /dev/null -w 'HTTP %{http_code}\n' -X POST $(HA_API)/services/homeassistant/restart \
 		-H "Content-Type: application/json" $(AUTH) || true
 	@echo "HA restarting..."
 
