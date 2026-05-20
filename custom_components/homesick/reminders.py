@@ -139,7 +139,7 @@ class ReminderEngine:
             await self.storage.async_add_medication(
                 person_id=person_id,
                 name=sched["medicine_name"],
-                note="Manuell bekräftelse",
+                note="Manual confirmation",
             )
 
     # ── Timer registration ─────────────────────────────────────────────────
@@ -206,12 +206,12 @@ class ReminderEngine:
             "notify",
             notify_service,
             {
-                "title": f"Dags att ta {medicine_name}",
-                "message": f"{person_name} ska ta {medicine_name} nu.",
+                "title": f"Time to take {medicine_name}",
+                "message": f"{person_name} should take {medicine_name} now.",
                 "data": {
                     "tag": f"homesick_dose_{dose_id}",
                     "actions": [
-                        {"action": f"confirm_dose_{dose_id}", "title": "Tagen ✓"},
+                        {"action": f"confirm_dose_{dose_id}", "title": "Taken ✓"},
                     ],
                 },
             },
