@@ -405,8 +405,9 @@ const CSS = `
     z-index: 9999;
   }
   .sj-modal {
-    background: var(--card, #1e1e2e);
+    background: var(--s2);
     color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
     min-width: 320px; max-width: 480px; width: 90%;
@@ -421,8 +422,8 @@ const CSS = `
   }
   .sj-modal select, .sj-modal input, .sj-modal textarea {
     width: 100%; padding: 8px; border-radius: 6px;
-    border: 1px solid var(--border, #333);
-    background: var(--mid, #2a2a3e);
+    border: 1px solid var(--border);
+    background: var(--s1);
     color: var(--text);
     font-size: .9rem;
     font-family: inherit;
@@ -434,8 +435,8 @@ const CSS = `
     padding: 8px 16px; border-radius: 6px; cursor: pointer;
     border: none; font-size: .9rem; font-weight: 600;
   }
-  .sj-btn-primary { background: var(--primary, #7c6af7); color: white; }
-  .sj-btn-secondary { background: var(--mid, #2a2a3e); color: var(--text); }
+  .sj-btn-primary { background: var(--teal); color: #fff; }
+  .sj-btn-secondary { background: var(--s3); color: var(--text); }
   .sj-btn-ghost { background: transparent; color: var(--muted); }
 
   /* switch toggle (modal-only; admin view uses existing lbl-tog) */
@@ -443,7 +444,7 @@ const CSS = `
   .sj-switch input { opacity: 0; width: 0; height: 0; }
   .sj-switch-slider {
     position: absolute; inset: 0; cursor: pointer;
-    background: var(--border, #555); border-radius: 22px;
+    background: var(--border); border-radius: 22px;
     transition: .2s;
   }
   .sj-switch-slider:before {
@@ -451,7 +452,7 @@ const CSS = `
     width: 16px; height: 16px; left: 3px; bottom: 3px;
     background: white; border-radius: 50%; transition: .2s;
   }
-  .sj-switch input:checked + .sj-switch-slider { background: var(--primary, #7c6af7); }
+  .sj-switch input:checked + .sj-switch-slider { background: var(--teal); }
   .sj-switch input:checked + .sj-switch-slider:before { transform: translateX(18px); }
   .sj-switch-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -901,7 +902,7 @@ class HomeSickCard extends HTMLElement {
                       this._refreshSchedules(person.id);
                     }
                   }, "Markera tagen");
-            return el("div", { style: { display: "flex", alignItems: "center", gap: "12px", padding: "6px 10px", background: "var(--mid)", borderRadius: "6px" } },
+            return el("div", { style: { display: "flex", alignItems: "center", gap: "12px", padding: "6px 10px", background: "var(--s1)", borderRadius: "6px" } },
               el("span", { style: { fontWeight: "600", minWidth: "48px" } }, timeStr),
               el("span", { style: { flex: 1 } }, sched.medicine_name),
               statusEl,
@@ -935,7 +936,7 @@ class HomeSickCard extends HTMLElement {
               : s.frequency?.type === "multiple_daily" ? "flera/dag"
               : s.frequency?.type === "every_n_days" ? `var ${s.frequency.every_n_days||"?"}:e dag`
               : "—";
-            return el("div", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "8px", background: "var(--mid)", borderRadius: "6px", flexWrap: "wrap" } },
+            return el("div", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "8px", background: "var(--s1)", borderRadius: "6px", flexWrap: "wrap" } },
               toggle,
               el("div", { style: { flex: 1, minWidth: "140px" } },
                 el("div", { style: { fontWeight: "600" } }, s.medicine_name),
@@ -1023,7 +1024,7 @@ class HomeSickCard extends HTMLElement {
         </div>
       </div>
     `;
-    this.shadowRoot.appendChild(modal);
+    (this.shadowRoot.querySelector(".sj-root") || this.shadowRoot).appendChild(modal);
 
     const freqSel = modal.querySelector("#sj-freq-type");
     const endSel = modal.querySelector("#sj-end-type");
@@ -1183,7 +1184,7 @@ class HomeSickCard extends HTMLElement {
           </div>
         </div>
       `;
-      shadow.appendChild(modal);
+      root.appendChild(modal);
       modal.querySelector("#sj-prompt-yes").addEventListener("click", () => {
         this._state.pendingSchedulePrompt = null;
         this._render();
