@@ -655,6 +655,7 @@ class HomeSickCard extends HTMLElement {
       pendingSchedulePrompt: null, // { personId, medicineName, schedule } — survives re-renders
       medCatalog: [],       // [{ name, default_dose, default_unit }] — global catalog
       medCatalogLoaded: false,
+      deleteScheduleConfirm: null, // medicine_name of a schedule pending delete confirmation
     };
     this._toast = null;
   }
@@ -916,37 +917,64 @@ class HomeSickCard extends HTMLElement {
           ...activeSchedules.map(s => {
             const toggle = el("input", { type: "checkbox", style: { marginRight: "8px" } });
             toggle.checked = !!s.enabled;
-            toggle.addEventListener("change", () => {
-              this._callService("toggle_schedule", {
+            toggle.addEventListener("change", async () => {
+              await this._callService("toggle_schedule", {
                 person_id: person.id,
                 medicine_name: s.medicine_name,
                 enabled: toggle.checked,
               });
+              this._refreshSchedules(person.id);
             });
             const neverAsk = el("input", { type: "checkbox", style: { marginRight: "4px" } });
             neverAsk.checked = !!s.never_ask;
-            neverAsk.addEventListener("change", () => {
-              this._callService("set_never_ask", {
+            neverAsk.addEventListener("change", async () => {
+              await this._callService("set_never_ask", {
                 person_id: person.id,
                 medicine_name: s.medicine_name,
                 value: neverAsk.checked,
               });
+              this._refreshSchedules(person.id);
             });
             const freqTxt = s.frequency?.type === "daily" ? "varje dag"
               : s.frequency?.type === "multiple_daily" ? "flera/dag"
               : s.frequency?.type === "every_n_days" ? `var ${s.frequency.every_n_days||"?"}:e dag`
               : "—";
+            const isDeleting = this._state.deleteScheduleConfirm === s.medicine_name;
+            const actions = isDeleting
+              ? el("div", { style: { display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" } },
+                  el("span", { style: { fontSize: "12px", color: "var(--red)" } }, "Radera schema?"),
+                  el("button", { className: "btn", style: { background: "var(--red)", color: "#fff", padding: "4px 10px", fontSize: "12px" },
+                    onClick: async () => {
+                      this._state.deleteScheduleConfirm = null;
+                      await this._callService("delete_schedule", {
+                        person_id: person.id,
+                        medicine_name: s.medicine_name,
+                      });
+                      this._showToast("Schema raderat");
+                      this._refreshSchedules(person.id);
+                    }
+                  }, "Ja"),
+                  el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
+                    onClick: () => { this._state.deleteScheduleConfirm = null; this._render(); }
+                  }, "Nej"),
+                )
+              : el("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexWrap: "wrap" } },
+                  el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
+                    onClick: () => this._showScheduleEditor(person.id, s.medicine_name, s)
+                  }, "✏️ Redigera"),
+                  el("button", { className: "btn-icon btn-danger",
+                    onClick: () => { this._state.deleteScheduleConfirm = s.medicine_name; this._render(); }
+                  }, "🗑"),
+                  el("label", { style: { display: "flex", alignItems: "center", fontSize: "12px", color: "var(--muted)", gap: "2px" } },
+                    neverAsk, "Fråga aldrig"),
+                );
             return el("div", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "8px", background: "var(--s1)", borderRadius: "6px", flexWrap: "wrap" } },
               toggle,
               el("div", { style: { flex: 1, minWidth: "140px" } },
                 el("div", { style: { fontWeight: "600" } }, s.medicine_name),
                 el("div", { style: { fontSize: "11px", color: "var(--muted)" } }, freqTxt),
               ),
-              el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
-                onClick: () => this._showScheduleEditor(person.id, s.medicine_name, s)
-              }, "✏️ Redigera"),
-              el("label", { style: { display: "flex", alignItems: "center", fontSize: "12px", color: "var(--muted)", gap: "2px" } },
-                neverAsk, "Fråga aldrig"),
+              actions,
             );
           }))
       : el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "Inga aktiva scheman. Logga en medicin för att lägga upp ett.");
@@ -1043,7 +1071,7 @@ class HomeSickCard extends HTMLElement {
     updateFreqUI(); updateEndUI();
 
     modal.querySelector("#sj-sched-cancel").addEventListener("click", () => modal.remove());
-    modal.querySelector("#sj-sched-save").addEventListener("click", () => {
+    modal.querySelector("#sj-sched-save").addEventListener("click", async () => {
       const freqType = freqSel.value;
       const times = modal.querySelector("#sj-times").value
         .split("\n").map(t => t.trim()).filter(Boolean);
@@ -1055,7 +1083,8 @@ class HomeSickCard extends HTMLElement {
       const notifOn = modal.querySelector("#sj-notif").checked;
       const notifyTarget = modal.querySelector("#sj-notify-target").value.trim() || null;
 
-      this._callService("create_schedule", {
+      modal.remove();
+      await this._callService("create_schedule", {
         person_id: personId,
         medicine_name: medicineName,
         frequency: {
@@ -1069,7 +1098,7 @@ class HomeSickCard extends HTMLElement {
         notify_target: notifyTarget,
       });
       this._showToast("Schema sparat ✓");
-      modal.remove();
+      this._refreshSchedules(personId);
     });
   }
 

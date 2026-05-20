@@ -314,6 +314,21 @@ toggle_schedule:
       selector:
         boolean:
 
+delete_schedule:
+  name: Delete medication schedule
+  description: Permanently delete a medication schedule and cancel its reminders.
+  fields:
+    person_id:
+      name: Person ID
+      required: true
+      selector:
+        text:
+    medicine_name:
+      name: Medicine name
+      required: true
+      selector:
+        text:
+
 confirm_dose:
   name: Confirm dose
   description: Manually confirm a scheduled dose as taken.

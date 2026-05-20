@@ -80,6 +80,16 @@ class ReminderEngine:
         for dose in sched.get("upcoming_doses", []):
             self._cancel_dose_timers(dose["id"])
 
+    async def async_delete_schedule(
+        self, person_id: str, medicine_name: str
+    ) -> bool:
+        """Cancel all timers for a schedule and remove it from storage."""
+        sched = await self.storage.async_get_schedule(person_id, medicine_name)
+        if sched is not None:
+            for dose in sched.get("upcoming_doses", []):
+                self._cancel_dose_timers(dose["id"])
+        return await self.storage.async_delete_schedule(person_id, medicine_name)
+
     # ── Dose confirmation ─────────────────────────────────────────────────
 
     async def async_auto_confirm_nearest(

@@ -141,6 +141,11 @@ TOGGLE_SCHEDULE_SCHEMA = vol.Schema({
     vol.Required("enabled"): cv.boolean,
 })
 
+DELETE_SCHEDULE_SCHEMA = vol.Schema({
+    vol.Required("person_id"): cv.string,
+    vol.Required("medicine_name"): cv.string,
+})
+
 CONFIRM_DOSE_SCHEMA = vol.Schema({
     vol.Required("person_id"): cv.string,
     vol.Required("medicine_name"): cv.string,
@@ -369,6 +374,18 @@ async def async_register_services(
                 data["person_id"], data["medicine_name"]
             )
 
+    async def handle_delete_schedule(call: ServiceCall) -> None:
+        data = call.data
+        engine = hass.data[DOMAIN].get("reminder_engine")
+        if engine:
+            await engine.async_delete_schedule(
+                data["person_id"], data["medicine_name"]
+            )
+        else:
+            await store.async_delete_schedule(
+                data["person_id"], data["medicine_name"]
+            )
+
     async def handle_confirm_dose(call: ServiceCall) -> None:
         data = call.data
         engine = hass.data[DOMAIN].get("reminder_engine")
@@ -433,6 +450,9 @@ async def async_register_services(
         DOMAIN, "toggle_schedule", handle_toggle_schedule, schema=TOGGLE_SCHEDULE_SCHEMA
     )
     hass.services.async_register(
+        DOMAIN, "delete_schedule", handle_delete_schedule, schema=DELETE_SCHEDULE_SCHEMA
+    )
+    hass.services.async_register(
         DOMAIN, "confirm_dose", handle_confirm_dose, schema=CONFIRM_DOSE_SCHEMA
     )
     hass.services.async_register(
@@ -446,7 +466,7 @@ async def async_register_services(
         schema=SET_REMINDERS_ENABLED_SCHEMA,
     )
 
-    _LOGGER.debug("HomeSick: registered 14 services")
+    _LOGGER.debug("HomeSick: registered 15 services")
 
 
 def _format_summary(summary: dict[str, Any]) -> str:
