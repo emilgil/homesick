@@ -165,7 +165,7 @@ custom_components/homesick/
   coordinator.py     DataUpdateCoordinator, in-memory cache
   reminders.py       Medication reminder engine (schedules, timers, notifications)
   sensor.py          HA sensor entities
-  services.py        14 HA services
+  services.py        15 HA services
   services.yaml      Service descriptions for the HA UI
   storage.py         Local data storage (HA Store)
   homesick-card.js   Lovelace custom card (copied to www/ on startup)

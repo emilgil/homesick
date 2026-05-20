@@ -1236,7 +1236,7 @@ class HomeSickCard extends HTMLElement {
   _renderLoading() {
     return el("div", { style: { padding: "40px", textAlign: "center" } },
       el("div", { className: "spinner" }),
-      el("p", { style: { color: "var(--muted)", fontSize: "13px", marginTop: "12px" } }, "Laddar SjukJournal…")
+      el("p", { style: { color: "var(--muted)", fontSize: "13px", marginTop: "12px" } }, "Loading HomeSick…")
     );
   }
 

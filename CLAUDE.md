@@ -39,7 +39,7 @@ Data flows through these layers:
 
 3. **`sensor.py`** — Creates HA sensor entities that read from coordinator snapshots (no I/O). One integration creates ~12 sensors per person (temperature, pulse, blood_pressure, weight, height, bmi, waist, blood_glucose, spo2, pain, mood, last_medication). BMI is auto-calculated from weight + height. Temperature sensor includes `fever_status` attribute.
 
-4. **`services.py`** — Registers 14 HA services. Core: `log_measurement`, `log_medication`, `add_symptom`, `add_person`, `delete_entry`, `get_summary`, `delete_person`, `activate_person`. Reminders: `create_schedule`, `toggle_schedule`, `confirm_dose`, `set_never_ask`, `decline_reminder`, `set_reminders_enabled`. All use voluptuous schemas for validation.
+4. **`services.py`** — Registers 15 HA services. Core: `log_measurement`, `log_medication`, `add_symptom`, `add_person`, `delete_entry`, `get_summary`, `delete_person`, `activate_person`. Reminders: `create_schedule`, `toggle_schedule`, `delete_schedule`, `confirm_dose`, `set_never_ask`, `decline_reminder`, `set_reminders_enabled`. All use voluptuous schemas for validation.
 
 5. **`reminders.py`** — `ReminderEngine` owns all medication-reminder logic: boots on startup, registers `async_track_point_in_time` timers for each pending dose, sends HA `notify` push notifications, detects missed doses, regenerates the dose horizon, and auto-confirms doses logged near a scheduled time.
 
