@@ -215,6 +215,11 @@ async def async_register_services(
                 data[ATTR_PERSON_ID],
             )
             await coordinator.async_request_refresh()
+            await store.async_update_med_catalog(
+                name=data[ATTR_MEDICATION],
+                dose=data.get(ATTR_DOSE),
+                unit=data.get(ATTR_DOSE_UNIT, "mg"),
+            )
             engine = hass.data.get(DOMAIN, {}).get("reminder_engine")
             if engine:
                 await engine.async_auto_confirm_nearest(
