@@ -103,6 +103,7 @@ async def async_setup_entry(
     if not hass.data[DOMAIN].get("_views_registered"):
         hass.http.register_view(HomeSickScheduleView())
         hass.http.register_view(HomeSickSettingsView())
+        hass.http.register_view(HomeSickMedCatalogView())
         hass.data[DOMAIN]["_views_registered"] = True
 
     _LOGGER.info("HomeSick: setup complete")
@@ -215,6 +216,20 @@ class HomeSickSettingsView(HomeAssistantView):
         store: HomeSickStore = hass.data[DOMAIN]["store"]
         enabled = await store.async_get_reminders_enabled()
         return self.json({"reminders_enabled": enabled})
+
+
+class HomeSickMedCatalogView(HomeAssistantView):
+    """GET /api/homesick/med_catalog — global medication catalog with default doses."""
+
+    url = "/api/homesick/med_catalog"
+    name = "api:homesick:med_catalog"
+    requires_auth = True
+
+    async def get(self, request):
+        hass = request.app["hass"]
+        store: HomeSickStore = hass.data[DOMAIN]["store"]
+        catalog = await store.async_get_med_catalog()
+        return self.json(list(catalog.values()))
 
 
 async def _async_ensure_frontend(hass: HomeAssistant) -> None:

@@ -651,6 +651,9 @@ class HomeSickCard extends HTMLElement {
       charts: {},          // apex instances keyed by id
       schedulesByPerson: {}, // personId → { medKey: schedule }
       remindersEnabled: true,
+      pendingSchedulePrompt: null, // { personId, medicineName, schedule } — survives re-renders
+      medCatalog: [],       // [{ name, default_dose, default_unit }] — global catalog
+      medCatalogLoaded: false,
     };
     this._toast = null;
   }
@@ -827,6 +830,17 @@ class HomeSickCard extends HTMLElement {
     }
   }
 
+  async _fetchMedCatalog() {
+    try {
+      const resp = await this._hass.fetchWithAuth("/api/homesick/med_catalog");
+      const data = await resp.json();
+      this._state.medCatalog = Array.isArray(data) ? data : [];
+    } catch (_) {
+      this._state.medCatalog = [];
+    }
+    this._state.medCatalogLoaded = true;
+  }
+
   async _refreshSchedules(personId) {
     const schedules = await this._fetchSchedules(personId);
     const masterEnabled = await this._fetchRemindersEnabled();
@@ -843,35 +857,9 @@ class HomeSickCard extends HTMLElement {
     const key = medicineName.trim().toLowerCase().replace(/ /g, "_");
     const schedule = schedules[key] || null;
     if (_shouldPromptSchedule(schedule, masterEnabled)) {
-      this._showSchedulePrompt(personId, medicineName, schedule);
+      this._state.pendingSchedulePrompt = { personId, medicineName, schedule };
+      this._render();
     }
-  }
-
-  _showSchedulePrompt(personId, medicineName, existingSchedule) {
-    const modal = document.createElement("div");
-    modal.className = "sj-modal-overlay";
-    modal.innerHTML = `
-      <div class="sj-modal">
-        <h3>Påminnelse för ${medicineName}?</h3>
-        <p>Vill du lägga upp ett påminnelseschema?</p>
-        <div class="sj-modal-actions">
-          <button class="sj-btn sj-btn-primary" id="sj-prompt-yes">Ja</button>
-          <button class="sj-btn sj-btn-secondary" id="sj-prompt-no">Nej</button>
-        </div>
-      </div>
-    `;
-    this.shadowRoot.appendChild(modal);
-    modal.querySelector("#sj-prompt-yes").addEventListener("click", () => {
-      modal.remove();
-      this._showScheduleEditor(personId, medicineName, existingSchedule);
-    });
-    modal.querySelector("#sj-prompt-no").addEventListener("click", () => {
-      modal.remove();
-      this._callService("decline_reminder", {
-        person_id: personId,
-        medicine_name: medicineName,
-      });
-    });
   }
 
   _renderRemindersSection(person, schedules) {
@@ -1179,6 +1167,37 @@ class HomeSickCard extends HTMLElement {
 
     const toast = el("div", { className: "toast" });
     root.appendChild(toast);
+
+    // Render pending schedule prompt modal — kept in state so it survives re-renders
+    if (this._state.pendingSchedulePrompt) {
+      const { personId, medicineName, schedule } = this._state.pendingSchedulePrompt;
+      const modal = document.createElement("div");
+      modal.className = "sj-modal-overlay";
+      modal.innerHTML = `
+        <div class="sj-modal">
+          <h3>Påminnelse för ${medicineName}?</h3>
+          <p>Vill du lägga upp ett påminnelseschema?</p>
+          <div class="sj-modal-actions">
+            <button class="sj-btn sj-btn-primary" id="sj-prompt-yes">Ja</button>
+            <button class="sj-btn sj-btn-secondary" id="sj-prompt-no">Nej</button>
+          </div>
+        </div>
+      `;
+      shadow.appendChild(modal);
+      modal.querySelector("#sj-prompt-yes").addEventListener("click", () => {
+        this._state.pendingSchedulePrompt = null;
+        this._render();
+        this._showScheduleEditor(personId, medicineName, schedule);
+      });
+      modal.querySelector("#sj-prompt-no").addEventListener("click", () => {
+        this._state.pendingSchedulePrompt = null;
+        this._callService("decline_reminder", {
+          person_id: personId,
+          medicine_name: medicineName,
+        });
+        this._render();
+      });
+    }
 
     // Schedule chart renders after DOM is painted
     requestAnimationFrame(() => this._postRender());
@@ -1702,14 +1721,38 @@ class HomeSickCard extends HTMLElement {
   _tab_medication(person) {
     const frag = el("div", { style: { display: "flex", flexDirection: "column", gap: "14px" } });
 
+    // Load global medication catalog once
+    if (!this._state.medCatalogLoaded) {
+      this._fetchMedCatalog().then(() => this._render());
+    }
+    const getCatalogEntry = (name) =>
+      this._state.medCatalog.find(
+        e => e.name.trim().toLowerCase() === (name || "").trim().toLowerCase()
+      ) || null;
+
     // Input form
     const medNames = this._getMedList();
     let selectedMed = medNames[0] || "";
     let selectedRoute = "oral";
     let isSkipped = false;
 
+    const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
+    const doseError = el("div", { style: { color: "var(--red)", fontSize: "12px", marginTop: "4px", display: "none" } }, "Ange en siffra eller lämna tomt (loggas utan dos)");
+    const doseUnit = el("select", { className: "field" },
+      ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
+    );
+
+    const applyCatalogDefaults = (medName) => {
+      const entry = getCatalogEntry(medName);
+      doseInput.value = entry?.default_dose != null ? entry.default_dose : "";
+      if (entry?.default_unit) doseUnit.value = entry.default_unit;
+    };
+
     const medSelect = el("select", { className: "field",
-      onChange: e => { selectedMed = e.target.value; }
+      onChange: e => {
+        selectedMed = e.target.value;
+        if (selectedMed !== "__new__") applyCatalogDefaults(selectedMed);
+      }
     },
       ...medNames.map(m => el("option", { value: m }, m)),
       el("option", { value: "__new__" }, "+ Enter new medication…"),
@@ -1719,10 +1762,8 @@ class HomeSickCard extends HTMLElement {
       medCustom.style.display = medSelect.value === "__new__" ? "block" : "none";
     });
 
-    const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
-    const doseUnit = el("select", { className: "field" },
-      ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
-    );
+    // Pre-fill from catalog for the initially selected medication
+    applyCatalogDefaults(selectedMed);
     const routeSelect = el("select", { className: "field",
       onChange: e => { selectedRoute = e.target.value; }
     },
@@ -1749,7 +1790,7 @@ class HomeSickCard extends HTMLElement {
       el("div", { className: "card-title" }, "Log medication"),
       el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Medication"), medSelect, medCustom),
       el("div", { className: "form-row form-row-2", style: { marginBottom: "10px" } },
-        el("div", {}, el("label", { className: "form-label" }, "Dose"), doseInput),
+        el("div", {}, el("label", { className: "form-label" }, "Dose"), doseInput, doseError),
         el("div", {}, el("label", { className: "form-label" }, "Unit"), doseUnit),
       ),
       el("div", { className: "form-group" }, el("label", { className: "form-label" }, "Method"), routeSelect),
@@ -1762,12 +1803,23 @@ class HomeSickCard extends HTMLElement {
         onClick: async () => {
           const name = medSelect.value === "__new__" ? medCustom.value.trim() : medSelect.value;
           if (!name) return;
+
+          // Validate dose: empty = OK (sent as null); non-numeric = blocked with inline error
+          const rawDose = doseInput.value.trim();
+          const parsedDose = rawDose === "" ? null : parseFloat(rawDose);
+          if (rawDose !== "" && isNaN(parsedDose)) {
+            doseError.style.display = "block";
+            doseInput.focus();
+            return;
+          }
+          doseError.style.display = "none";
+
           const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,"0")}-${String(_d.getDate()).padStart(2,"0")}`;
           const ts = `${today}T${timeInput.getValue()}:00`;
           await this._callService("log_medication", {
             person_id: person.id,
             medication: name,
-            dose: parseFloat(doseInput.value) || null,
+            dose: parsedDose,
             dose_unit: doseUnit.value,
             route: routeSelect.value,
             timestamp: ts,
@@ -1834,8 +1886,10 @@ class HomeSickCard extends HTMLElement {
   }
 
   _getMedList() {
-    // Gather from all person medication histories
     const names = new Set();
+    // From the global catalog
+    for (const entry of this._state.medCatalog) names.add(entry.name);
+    // From logged history (catches names not yet in the catalog)
     for (const p of this._state.persons) {
       for (const m of p.medications || []) names.add(m.name);
     }

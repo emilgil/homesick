@@ -66,7 +66,7 @@ LOG_MEASUREMENT_SCHEMA = vol.Schema({
 LOG_MEDICATION_SCHEMA = vol.Schema({
     vol.Required(ATTR_PERSON_ID): cv.string,
     vol.Required(ATTR_MEDICATION): cv.string,
-    vol.Optional(ATTR_DOSE): vol.Coerce(float),
+    vol.Optional(ATTR_DOSE): vol.Any(None, vol.Coerce(float)),
     vol.Optional(ATTR_DOSE_UNIT, default="mg"): cv.string,
     vol.Optional(ATTR_ROUTE, default="oral"): vol.In(
         ["oral", "inhalation", "injection", "topical", "other"]
@@ -215,6 +215,11 @@ async def async_register_services(
                 data[ATTR_PERSON_ID],
             )
             await coordinator.async_request_refresh()
+            await store.async_update_med_catalog(
+                name=data[ATTR_MEDICATION],
+                dose=data.get(ATTR_DOSE),
+                unit=data.get(ATTR_DOSE_UNIT, "mg"),
+            )
             engine = hass.data.get(DOMAIN, {}).get("reminder_engine")
             if engine:
                 await engine.async_auto_confirm_nearest(
