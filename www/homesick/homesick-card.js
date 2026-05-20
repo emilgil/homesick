@@ -889,9 +889,9 @@ class HomeSickCard extends HTMLElement {
           ...doseRows.map(({ sched, dose, dt }) => {
             const timeStr = dt.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
             const statusEl = dose.status === "taken"
-              ? el("span", { style: { color: "var(--green, #22c55e)", fontWeight: "600", fontSize: "13px" } }, "✓ Tagen")
+              ? el("span", { style: { color: "var(--green, #22c55e)", fontWeight: "600", fontSize: "13px" } }, "✓ Taken")
               : dose.status === "missed"
-                ? el("span", { style: { color: "var(--red)", fontWeight: "600", fontSize: "13px" } }, "✗ Missad")
+                ? el("span", { style: { color: "var(--red)", fontWeight: "600", fontSize: "13px" } }, "✗ Missed")
                 : el("button", { className: "btn", style: { padding: "4px 10px", fontSize: "12px" },
                     onClick: async () => {
                       await this._callService("confirm_dose", {
@@ -899,10 +899,10 @@ class HomeSickCard extends HTMLElement {
                         medicine_name: sched.medicine_name,
                         dose_id: dose.id,
                       });
-                      this._showToast("Dos markerad ✓");
+                      this._showToast("Dose marked as taken ✓");
                       this._refreshSchedules(person.id);
                     }
-                  }, "Markera tagen");
+                  }, "Mark as taken");
             return el("div", { style: { display: "flex", alignItems: "center", gap: "12px", padding: "6px 10px", background: "var(--s1)", borderRadius: "6px" } },
               el("span", { style: { fontWeight: "600", minWidth: "48px" } }, timeStr),
               el("span", { style: { flex: 1 } }, sched.medicine_name),
@@ -935,14 +935,14 @@ class HomeSickCard extends HTMLElement {
               });
               this._refreshSchedules(person.id);
             });
-            const freqTxt = s.frequency?.type === "daily" ? "varje dag"
-              : s.frequency?.type === "multiple_daily" ? "flera/dag"
-              : s.frequency?.type === "every_n_days" ? `var ${s.frequency.every_n_days||"?"}:e dag`
+            const freqTxt = s.frequency?.type === "daily" ? "every day"
+              : s.frequency?.type === "multiple_daily" ? "several/day"
+              : s.frequency?.type === "every_n_days" ? `every ${s.frequency.every_n_days||"?"} days`
               : "—";
             const isDeleting = this._state.deleteScheduleConfirm === s.medicine_name;
             const actions = isDeleting
               ? el("div", { style: { display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" } },
-                  el("span", { style: { fontSize: "12px", color: "var(--red)" } }, "Radera schema?"),
+                  el("span", { style: { fontSize: "12px", color: "var(--red)" } }, "Delete schedule?"),
                   el("button", { className: "btn", style: { background: "var(--red)", color: "#fff", padding: "4px 10px", fontSize: "12px" },
                     onClick: async () => {
                       this._state.deleteScheduleConfirm = null;
@@ -950,23 +950,23 @@ class HomeSickCard extends HTMLElement {
                         person_id: person.id,
                         medicine_name: s.medicine_name,
                       });
-                      this._showToast("Schema raderat");
+                      this._showToast("Schedule deleted");
                       this._refreshSchedules(person.id);
                     }
-                  }, "Ja"),
+                  }, "Yes"),
                   el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
                     onClick: () => { this._state.deleteScheduleConfirm = null; this._render(); }
-                  }, "Nej"),
+                  }, "No"),
                 )
               : el("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexWrap: "wrap" } },
                   el("button", { className: "btn btn-ghost", style: { padding: "4px 10px", fontSize: "12px" },
                     onClick: () => this._showScheduleEditor(person.id, s.medicine_name, s)
-                  }, "✏️ Redigera"),
+                  }, "✏️ Edit"),
                   el("button", { className: "btn-icon btn-danger",
                     onClick: () => { this._state.deleteScheduleConfirm = s.medicine_name; this._render(); }
                   }, "🗑"),
                   el("label", { style: { display: "flex", alignItems: "center", fontSize: "12px", color: "var(--muted)", gap: "2px" } },
-                    neverAsk, "Fråga aldrig"),
+                    neverAsk, "Never ask"),
                 );
             return el("div", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "8px", background: "var(--s1)", borderRadius: "6px", flexWrap: "wrap" } },
               toggle,
@@ -977,12 +977,12 @@ class HomeSickCard extends HTMLElement {
               actions,
             );
           }))
-      : el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "Inga aktiva scheman. Logga en medicin för att lägga upp ett.");
+      : el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "No active schedules. Log a medication to set one up.");
 
     return el("div", { className: "card" },
       el("div", { className: "card-title" },
-        "⏰ Påminnelser",
-        masterOff ? el("span", { style: { marginLeft: "8px", fontSize: "12px", color: "var(--red)" } }, "(masterswitch AV)") : null,
+        "⏰ Reminders",
+        masterOff ? el("span", { style: { marginLeft: "8px", fontSize: "12px", color: "var(--red)" } }, "(master switch off)") : null,
       ),
       doseList,
       schedRows,
@@ -996,35 +996,35 @@ class HomeSickCard extends HTMLElement {
     modal.className = "sj-modal-overlay";
     modal.innerHTML = `
       <div class="sj-modal sj-schedule-editor">
-        <h3>Schema: ${medicineName}</h3>
+        <h3>Schedule: ${medicineName}</h3>
 
-        <label>Frekvens</label>
+        <label>Frequency</label>
         <select id="sj-freq-type">
-          <option value="daily" ${f.type==="daily"?"selected":""}>Varje dag</option>
-          <option value="multiple_daily" ${f.type==="multiple_daily"?"selected":""}>Flera gånger om dagen</option>
-          <option value="every_n_days" ${f.type==="every_n_days"?"selected":""}>Var n:te dag</option>
+          <option value="daily" ${f.type==="daily"?"selected":""}>Every day</option>
+          <option value="multiple_daily" ${f.type==="multiple_daily"?"selected":""}>Several times a day</option>
+          <option value="every_n_days" ${f.type==="every_n_days"?"selected":""}>Every N days</option>
         </select>
 
         <div id="sj-times-section">
-          <label>Klockslag (ett per rad, HH:MM)</label>
+          <label>Times (one per line, HH:MM)</label>
           <textarea id="sj-times" rows="3">${(f.times||["08:00"]).join("\n")}</textarea>
         </div>
 
         <div id="sj-interval-section" style="display:none">
-          <label>Intervall (timmar)</label>
+          <label>Interval (hours)</label>
           <input type="number" id="sj-interval" min="1" max="24" value="${f.interval_hours||8}">
         </div>
 
         <div id="sj-ndays-section" style="display:none">
-          <label>Var n:te dag</label>
+          <label>Every N days</label>
           <input type="number" id="sj-ndays" min="2" max="90" value="${f.every_n_days||2}">
         </div>
 
-        <label>Slutar</label>
+        <label>Ends</label>
         <select id="sj-end-type">
-          <option value="none" ${end.type==="none"?"selected":""}>Inget slutdatum</option>
-          <option value="date" ${end.type==="date"?"selected":""}>Datum</option>
-          <option value="dose_count" ${end.type==="dose_count"?"selected":""}>Antal doser</option>
+          <option value="none" ${end.type==="none"?"selected":""}>No end date</option>
+          <option value="date" ${end.type==="date"?"selected":""}>Date</option>
+          <option value="dose_count" ${end.type==="dose_count"?"selected":""}>Dose count</option>
         </select>
         <div id="sj-end-date-section" style="display:none">
           <input type="date" id="sj-end-date" value="${end.date||""}">
@@ -1034,21 +1034,21 @@ class HomeSickCard extends HTMLElement {
         </div>
 
         <div class="sj-switch-row">
-          <label>Notiser</label>
+          <label>Notifications</label>
           <label class="sj-switch">
             <input type="checkbox" id="sj-notif" ${existing?.notifications_on!==false?"checked":""}>
             <span class="sj-switch-slider"></span>
           </label>
         </div>
 
-        <label>Notifieringsmål (t.ex. mobile_app_anna_phone)</label>
+        <label>Notify target (e.g. mobile_app_anna_phone)</label>
         <input type="text" id="sj-notify-target"
-          placeholder="lämna tomt för default (notify.notify)"
+          placeholder="leave blank for default (notify.notify)"
           value="${existing?.notify_target || ""}">
 
         <div class="sj-modal-actions">
-          <button class="sj-btn sj-btn-primary" id="sj-sched-save">Spara</button>
-          <button class="sj-btn sj-btn-ghost" id="sj-sched-cancel">Avbryt</button>
+          <button class="sj-btn sj-btn-primary" id="sj-sched-save">Save</button>
+          <button class="sj-btn sj-btn-ghost" id="sj-sched-cancel">Cancel</button>
         </div>
       </div>
     `;
@@ -1097,7 +1097,7 @@ class HomeSickCard extends HTMLElement {
         notifications_on: notifOn,
         notify_target: notifyTarget,
       });
-      this._showToast("Schema sparat ✓");
+      this._showToast("Schedule saved ✓");
       this._refreshSchedules(personId);
     });
   }
@@ -1205,11 +1205,11 @@ class HomeSickCard extends HTMLElement {
       modal.className = "sj-modal-overlay";
       modal.innerHTML = `
         <div class="sj-modal">
-          <h3>Påminnelse för ${medicineName}?</h3>
-          <p>Vill du lägga upp ett påminnelseschema?</p>
+          <h3>Reminder for ${medicineName}?</h3>
+          <p>Set up a reminder schedule?</p>
           <div class="sj-modal-actions">
-            <button class="sj-btn sj-btn-primary" id="sj-prompt-yes">Ja</button>
-            <button class="sj-btn sj-btn-secondary" id="sj-prompt-no">Nej</button>
+            <button class="sj-btn sj-btn-primary" id="sj-prompt-yes">Yes</button>
+            <button class="sj-btn sj-btn-secondary" id="sj-prompt-no">No</button>
           </div>
         </div>
       `;
@@ -1767,7 +1767,7 @@ class HomeSickCard extends HTMLElement {
     let isSkipped = false;
 
     const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
-    const doseError = el("div", { style: { color: "var(--red)", fontSize: "12px", marginTop: "4px", display: "none" } }, "Ange en siffra eller lämna tomt (loggas utan dos)");
+    const doseError = el("div", { style: { color: "var(--red)", fontSize: "12px", marginTop: "4px", display: "none" } }, "Enter a number or leave blank (logged without a dose)");
     const doseUnit = el("select", { className: "field" },
       ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
     );
@@ -2187,19 +2187,19 @@ class HomeSickCard extends HTMLElement {
         const newVal = !this._state.remindersEnabled;
         this._state.remindersEnabled = newVal;
         this._callService("set_reminders_enabled", { enabled: newVal });
-        this._showToast(newVal ? "Påminnelser AKTIVERADE" : "Påminnelser AVAKTIVERADE");
+        this._showToast(newVal ? "Reminders enabled" : "Reminders disabled");
         this._render();
       }
     }, el("div", { className: "lbl-tog-knob" }));
     scroll.appendChild(el("div", { className: "card" },
-      el("div", { className: "card-title" }, "⏰ Medicinpåminnelser"),
+      el("div", { className: "card-title" }, "⏰ Medication reminders"),
       el("div", { style: { display: "flex", alignItems: "center", gap: "12px" } },
-        el("span", { style: { fontSize: "13px", color: masterEnabled ? "var(--muted)" : "var(--text)" } }, "Av"),
+        el("span", { style: { fontSize: "13px", color: masterEnabled ? "var(--muted)" : "var(--text)" } }, "Off"),
         remTrack,
-        el("span", { style: { fontSize: "13px", color: masterEnabled ? "var(--text)" : "var(--muted)" } }, "På"),
+        el("span", { style: { fontSize: "13px", color: masterEnabled ? "var(--text)" : "var(--muted)" } }, "On"),
       ),
       el("div", { style: { fontSize: "12px", color: "var(--muted)", marginTop: "8px" } },
-        "Stänger av alla notifieringar utan att radera scheman."),
+        "Turns off all notifications without deleting any schedules."),
     ));
 
     return el("div", { style: { display: "flex", flexDirection: "column", height: "100%" } }, topbar, scroll);

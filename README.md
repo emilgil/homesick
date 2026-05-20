@@ -115,7 +115,7 @@ HomeSick can remind you (or a family member) to take medication on a schedule, w
 
 ### Setting up a schedule
 
-After you log a dose, the card asks whether you want a reminder schedule for that medicine. Choose **Ja** to open the schedule editor, where you set:
+After you log a dose, the card asks whether you want a reminder schedule for that medicine. Choose **Yes** to open the schedule editor, where you set:
 
 - **Frequency** — every day, several times a day (fixed times or an hourly interval), or every N days
 - **Times** — one or more times of day (`HH:MM`)
@@ -123,7 +123,7 @@ After you log a dose, the card asks whether you want a reminder schedule for tha
 - **Notifications** — on/off
 - **Notify target** — the HA notify service to use, e.g. `mobile_app_anna_phone`. Leave blank to use the default `notify.notify`.
 
-If you choose **Nej**, HomeSick won't ask again for that medicine for one week. You can also set **"Fråga aldrig"** (never ask) per medicine in the Medication tab.
+If you choose **No**, HomeSick won't ask again for that medicine for one week. You can also set **"Never ask"** per medicine in the Medication tab.
 
 ### How reminders behave
 
@@ -134,7 +134,7 @@ If you choose **Nej**, HomeSick won't ask again for that medicine for one week. 
 
 ### Master switch
 
-**⚙ Manage → ⏰ Medicinpåminnelser** has a global on/off switch. Turning it off mutes *all* reminders and notifications without deleting any schedules. Turning it back on re-arms every active schedule.
+**⚙ Manage → ⏰ Medication reminders** has a global on/off switch. Turning it off mutes *all* reminders and notifications without deleting any schedules. Turning it back on re-arms every active schedule.
 
 ### Default dose
 
