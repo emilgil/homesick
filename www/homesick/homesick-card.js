@@ -652,6 +652,8 @@ class HomeSickCard extends HTMLElement {
       schedulesByPerson: {}, // personId → { medKey: schedule }
       remindersEnabled: true,
       pendingSchedulePrompt: null, // { personId, medicineName, schedule } — survives re-renders
+      medCatalog: [],       // [{ name, default_dose, default_unit }] — global catalog
+      medCatalogLoaded: false,
     };
     this._toast = null;
   }
@@ -826,6 +828,17 @@ class HomeSickCard extends HTMLElement {
     } catch (_) {
       return {};
     }
+  }
+
+  async _fetchMedCatalog() {
+    try {
+      const resp = await this._hass.fetchWithAuth("/api/homesick/med_catalog");
+      const data = await resp.json();
+      this._state.medCatalog = Array.isArray(data) ? data : [];
+    } catch (_) {
+      this._state.medCatalog = [];
+    }
+    this._state.medCatalogLoaded = true;
   }
 
   async _refreshSchedules(personId) {
@@ -1708,14 +1721,38 @@ class HomeSickCard extends HTMLElement {
   _tab_medication(person) {
     const frag = el("div", { style: { display: "flex", flexDirection: "column", gap: "14px" } });
 
+    // Load global medication catalog once
+    if (!this._state.medCatalogLoaded) {
+      this._fetchMedCatalog().then(() => this._render());
+    }
+    const getCatalogEntry = (name) =>
+      this._state.medCatalog.find(
+        e => e.name.trim().toLowerCase() === (name || "").trim().toLowerCase()
+      ) || null;
+
     // Input form
     const medNames = this._getMedList();
     let selectedMed = medNames[0] || "";
     let selectedRoute = "oral";
     let isSkipped = false;
 
+    const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
+    const doseError = el("div", { style: { color: "var(--red)", fontSize: "12px", marginTop: "4px", display: "none" } }, "Ange en siffra eller lämna tomt (loggas utan dos)");
+    const doseUnit = el("select", { className: "field" },
+      ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
+    );
+
+    const applyCatalogDefaults = (medName) => {
+      const entry = getCatalogEntry(medName);
+      doseInput.value = entry?.default_dose != null ? entry.default_dose : "";
+      if (entry?.default_unit) doseUnit.value = entry.default_unit;
+    };
+
     const medSelect = el("select", { className: "field",
-      onChange: e => { selectedMed = e.target.value; }
+      onChange: e => {
+        selectedMed = e.target.value;
+        if (selectedMed !== "__new__") applyCatalogDefaults(selectedMed);
+      }
     },
       ...medNames.map(m => el("option", { value: m }, m)),
       el("option", { value: "__new__" }, "+ Enter new medication…"),
@@ -1725,11 +1762,8 @@ class HomeSickCard extends HTMLElement {
       medCustom.style.display = medSelect.value === "__new__" ? "block" : "none";
     });
 
-    const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
-    const doseError = el("div", { style: { color: "var(--red)", fontSize: "12px", marginTop: "4px", display: "none" } }, "Ange en siffra eller lämna tomt (loggas utan dos)");
-    const doseUnit = el("select", { className: "field" },
-      ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
-    );
+    // Pre-fill from catalog for the initially selected medication
+    applyCatalogDefaults(selectedMed);
     const routeSelect = el("select", { className: "field",
       onChange: e => { selectedRoute = e.target.value; }
     },
@@ -1852,8 +1886,10 @@ class HomeSickCard extends HTMLElement {
   }
 
   _getMedList() {
-    // Gather from all person medication histories
     const names = new Set();
+    // From the global catalog
+    for (const entry of this._state.medCatalog) names.add(entry.name);
+    // From logged history (catches names not yet in the catalog)
     for (const p of this._state.persons) {
       for (const m of p.medications || []) names.add(m.name);
     }
