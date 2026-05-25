@@ -56,6 +56,7 @@ Data flows through these layers:
 - **Reminder master switch**: `reminders_enabled` (top-level in storage, default `true`) globally mutes reminders without touching individual schedule `enabled` flags.
 - **Schedule keys**: schedules are stored per person → per normalized medicine name (`name.strip().lower().replace(" ", "_")`).
 - **Med catalog**: `med_catalog` stores a global default dose/unit per medicine, updated on every `log_medication` that includes a dose. Logging without a dose never overwrites the stored default.
+- **Medication form draft**: the Log-medication form's input lives in `_state.medDraft` (sel, custom, dose, unit, route, note, skipped) plus a `userEditedDose` flag. The form is rebuilt on every `_render()` — background work (catalog fetch, schedule fetch) triggers re-renders soon after the tab opens — so the draft is the single source of truth that initializes fields on each render and is written to from input listeners. Catalog defaults only fill the dose while `userEditedDose` is false. Without this, typed values were wiped by background re-renders.
 
 ## Services Reference
 
@@ -129,6 +130,10 @@ homesick.toggle_schedule:
   person_id: <uuid>
   medicine_name: Metformin
   enabled: false                # pause/resume without deleting
+
+homesick.delete_schedule:
+  person_id: <uuid>
+  medicine_name: Metformin      # cancels timers and removes the schedule entirely
 
 homesick.confirm_dose:
   person_id: <uuid>

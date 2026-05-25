@@ -132,6 +132,13 @@ If you choose **No**, HomeSick won't ask again for that medicine for one week. Y
 - Logging a dose near a scheduled time **auto-confirms** that dose.
 - Schedules survive HA restarts.
 
+### Editing or deleting a schedule
+
+Each schedule row in the Medication tab's **⏰ Reminders** section has:
+- a toggle to pause/resume it (keeps the schedule, stops notifications)
+- **✏️ Edit** to reopen the schedule editor and change frequency, times, end condition or notify target
+- **🗑** to delete the schedule entirely (asks "Delete schedule? Yes/No"). Deleting cancels its pending notification timers; "Never ask" is reset, so logging that medicine next time will prompt again — use the "Never ask" toggle on the row if you want to suppress that.
+
 ### Master switch
 
 **⚙ Manage → ⏰ Medication reminders** has a global on/off switch. Turning it off mutes *all* reminders and notifications without deleting any schedules. Turning it back on re-arms every active schedule.
