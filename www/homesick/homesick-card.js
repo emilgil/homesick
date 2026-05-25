@@ -656,6 +656,7 @@ class HomeSickCard extends HTMLElement {
       medCatalog: [],       // [{ name, default_dose, default_unit }] — global catalog
       medCatalogLoaded: false,
       deleteScheduleConfirm: null, // medicine_name of a schedule pending delete confirmation
+      medDraft: this._freshMedDraft(), // medication-form input; survives re-renders
     };
     this._toast = null;
   }
@@ -1748,6 +1749,19 @@ class HomeSickCard extends HTMLElement {
 
   // ── TAB: Medication ───────────────────────────────────────────────────────
 
+  _freshMedDraft() {
+    return {
+      sel: null,             // dropdown value; null until first initialized
+      custom: "",            // custom medicine name (when sel === "__new__")
+      dose: "",              // dose field text
+      unit: "mg",
+      route: "oral",
+      note: "",
+      skipped: false,
+      userEditedDose: false, // true once the user types in the dose field
+    };
+  }
+
   _tab_medication(person) {
     const frag = el("div", { style: { display: "flex", flexDirection: "column", gap: "14px" } });
 
@@ -1760,60 +1774,71 @@ class HomeSickCard extends HTMLElement {
         e => e.name.trim().toLowerCase() === (name || "").trim().toLowerCase()
       ) || null;
 
-    // Input form
+    // Persistent form draft — survives the re-renders triggered by background
+    // catalog/schedule fetches and the post-save reload.
+    const draft = this._state.medDraft;
     const medNames = this._getMedList();
-    let selectedMed = medNames[0] || "";
-    let selectedRoute = "oral";
-    let isSkipped = false;
+    if (draft.sel === null) draft.sel = medNames[0] || "";
+
+    // Keep the dose synced to the catalog default until the user edits it
+    // (handles the catalog arriving after the form first rendered).
+    if (!draft.userEditedDose && draft.sel && draft.sel !== "__new__") {
+      const entry = getCatalogEntry(draft.sel);
+      draft.dose = entry?.default_dose != null ? String(entry.default_dose) : "";
+      if (entry?.default_unit) draft.unit = entry.default_unit;
+    }
 
     const doseInput = el("input", { className: "field", placeholder: "500", type: "number" });
+    doseInput.value = draft.dose;
+    doseInput.addEventListener("input", () => {
+      draft.dose = doseInput.value;
+      draft.userEditedDose = true;
+    });
     const doseError = el("div", { style: { color: "var(--red)", fontSize: "12px", marginTop: "4px", display: "none" } }, "Enter a number or leave blank (logged without a dose)");
     const doseUnit = el("select", { className: "field" },
       ...["mg", "ml", "tablet", "puff", "drop", "g"].map(u => el("option", { value: u }, u))
     );
+    doseUnit.value = draft.unit;
+    doseUnit.addEventListener("change", () => { draft.unit = doseUnit.value; });
 
-    const applyCatalogDefaults = (medName) => {
-      const entry = getCatalogEntry(medName);
-      doseInput.value = entry?.default_dose != null ? entry.default_dose : "";
-      if (entry?.default_unit) doseUnit.value = entry.default_unit;
-    };
-
-    const medSelect = el("select", { className: "field",
-      onChange: e => {
-        selectedMed = e.target.value;
-        if (selectedMed !== "__new__") applyCatalogDefaults(selectedMed);
-      }
-    },
+    const medSelect = el("select", { className: "field" },
       ...medNames.map(m => el("option", { value: m }, m)),
       el("option", { value: "__new__" }, "+ Enter new medication…"),
     );
-    const medCustom = el("input", { className: "field", placeholder: "Medication name", style: { display: "none" } });
+    medSelect.value = draft.sel;
+    const medCustom = el("input", { className: "field", placeholder: "Medication name",
+      style: { display: draft.sel === "__new__" ? "block" : "none" } });
+    medCustom.value = draft.custom;
+    medCustom.addEventListener("input", () => { draft.custom = medCustom.value; });
     medSelect.addEventListener("change", () => {
-      medCustom.style.display = medSelect.value === "__new__" ? "block" : "none";
+      draft.sel = medSelect.value;
+      if (draft.sel !== "__new__") draft.custom = "";
+      draft.userEditedDose = false; // new medicine → re-apply its catalog default
+      this._render();
     });
 
-    // Pre-fill from catalog for the initially selected medication
-    applyCatalogDefaults(selectedMed);
-    const routeSelect = el("select", { className: "field",
-      onChange: e => { selectedRoute = e.target.value; }
-    },
+    const routeSelect = el("select", { className: "field" },
       ...ROUTES.map(r => el("option", { value: r.value }, r.label))
     );
+    routeSelect.value = draft.route;
+    routeSelect.addEventListener("change", () => { draft.route = routeSelect.value; });
     const noteInput = el("input", { className: "field", placeholder: "Note (optional)" });
+    noteInput.value = draft.note;
+    noteInput.addEventListener("input", () => { draft.note = noteInput.value; });
     const timeInput = this._makeTimeInput();
 
     // Skipped-dose toggle
-    const skipTrack = el("div", { className: "lbl-tog-track", style: { cursor: "pointer" } },
+    const skipTrack = el("div", { className: `lbl-tog-track${draft.skipped ? " on" : ""}`, style: { cursor: "pointer" } },
       el("div", { className: "lbl-tog-knob" })
     );
     const skipToggle = el("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none" } },
       skipTrack,
-      el("span", { style: { fontSize: "13px", color: "var(--muted)" } }, "Skipped dose"),
+      el("span", { style: { fontSize: "13px", color: draft.skipped ? "var(--red)" : "var(--muted)" } }, "Skipped dose"),
     );
     skipTrack.addEventListener("click", () => {
-      isSkipped = !isSkipped;
-      skipTrack.classList.toggle("on", isSkipped);
-      skipTrack.nextElementSibling.style.color = isSkipped ? "var(--red)" : "var(--muted)";
+      draft.skipped = !draft.skipped;
+      skipTrack.classList.toggle("on", draft.skipped);
+      skipTrack.nextElementSibling.style.color = draft.skipped ? "var(--red)" : "var(--muted)";
     });
 
     frag.appendChild(el("div", { className: "card" },
@@ -1831,11 +1856,11 @@ class HomeSickCard extends HTMLElement {
       el("div", { style: { marginBottom: "12px" } }, skipToggle),
       el("button", { className: "btn btn-primary",
         onClick: async () => {
-          const name = medSelect.value === "__new__" ? medCustom.value.trim() : medSelect.value;
+          const name = draft.sel === "__new__" ? draft.custom.trim() : draft.sel;
           if (!name) return;
 
           // Validate dose: empty = OK (sent as null); non-numeric = blocked with inline error
-          const rawDose = doseInput.value.trim();
+          const rawDose = String(draft.dose).trim();
           const parsedDose = rawDose === "" ? null : parseFloat(rawDose);
           if (rawDose !== "" && isNaN(parsedDose)) {
             doseError.style.display = "block";
@@ -1844,22 +1869,26 @@ class HomeSickCard extends HTMLElement {
           }
           doseError.style.display = "none";
 
+          const wasSkipped = draft.skipped;
           const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,"0")}-${String(_d.getDate()).padStart(2,"0")}`;
           const ts = `${today}T${timeInput.getValue()}:00`;
           await this._callService("log_medication", {
             person_id: person.id,
             medication: name,
             dose: parsedDose,
-            dose_unit: doseUnit.value,
-            route: routeSelect.value,
+            dose_unit: draft.unit,
+            route: draft.route,
             timestamp: ts,
-            skipped: isSkipped,
-            note: noteInput.value,
+            skipped: wasSkipped,
+            note: draft.note,
           });
-          this._showToast(isSkipped ? "Skipped dose logged ✓" : "Medication logged ✓");
-          if (!isSkipped) {
+          this._state.medDraft = this._freshMedDraft();
+          await this._fetchMedCatalog();
+          this._showToast(wasSkipped ? "Skipped dose logged ✓" : "Medication logged ✓");
+          if (!wasSkipped) {
             this._afterDoseLogged(person.id, name);
           }
+          this._render();
         }
       }, "💊 Log dose"),
     ));
