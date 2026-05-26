@@ -89,6 +89,13 @@
         "person_id": { "name": "Person ID", "description": "UUID of the person." },
         "hours": { "name": "Hours", "description": "Cover the last N hours (default 24)." }
       }
+    },
+    "delete_med_catalog_entry": {
+      "name": "Delete medication catalog entry",
+      "description": "Remove a medicine name from the global medication catalog (does not touch schedules or history).",
+      "fields": {
+        "medicine_name": { "name": "Medicine name", "description": "Name of the medicine to remove from the catalog." }
+      }
     }
   }
 }

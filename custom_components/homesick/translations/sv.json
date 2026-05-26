@@ -89,6 +89,13 @@
         "person_id": { "name": "Person-ID", "description": "UUID för personen." },
         "hours": { "name": "Antal timmar", "description": "Täck in senaste N timmar (standard 24)." }
       }
+    },
+    "delete_med_catalog_entry": {
+      "name": "Ta bort medicin från katalogen",
+      "description": "Ta bort ett medicinnamn från den globala medicinkatalogen (påverkar inte scheman eller historik).",
+      "fields": {
+        "medicine_name": { "name": "Medicinnamn", "description": "Namnet på medicinen som ska tas bort från katalogen." }
+      }
     }
   }
 }
