@@ -393,3 +393,13 @@ set_reminders_enabled:
       required: true
       selector:
         boolean:
+
+delete_med_catalog_entry:
+  name: Delete medication catalog entry
+  description: Remove a medicine name from the global medication catalog (does not touch schedules or history).
+  fields:
+    medicine_name:
+      name: Medicine name
+      required: true
+      selector:
+        text:
