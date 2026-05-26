@@ -1490,14 +1490,17 @@ class HomeSickCard extends HTMLElement {
       el("div", { className: "card-title" }, "💊 Recent medication"),
       meds.length === 0
         ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "No medication logged yet.")
-        : el("div", {}, ...meds.map(m => el("div", { className: "entry-item" },
-            el("div", { className: "entry-icon" }, "💊"),
-            el("div", {},
-              el("div", { className: "entry-name" }, m.name),
-              el("div", { className: "entry-sub" }, `${m.dose || ""} ${m.unit || ""}`.trim()),
-            ),
-            el("div", { className: "entry-time" }, fmtTs(m.timestamp, this._hass)),
-          )))
+        : el("div", {}, ...meds.map(m => {
+            const doseText = `${m.dose || ""} ${m.unit || ""}`.trim();
+            const title = doseText ? `${m.name} · ${doseText}` : m.name;
+            return el("div", { className: "entry-item" },
+              el("div", { className: "entry-icon" }, "💊"),
+              el("div", {},
+                el("div", { className: "entry-name" }, title),
+              ),
+              el("div", { className: "entry-time" }, fmtTs(m.timestamp, this._hass)),
+            );
+          }))
     );
     frag.appendChild(medCard);
 
@@ -1911,11 +1914,14 @@ class HomeSickCard extends HTMLElement {
         ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } }, "No medication logged.")
         : el("div", {}, ...meds.slice(0, 20).map(m => {
             const isPending = this._state.deleteConfirmEntryId === m.id;
+            const doseText = `${m.dose || ""} ${m.unit || ""}`.trim();
+            const title = doseText ? `${m.name} · ${doseText}` : m.name;
+            const routeLabel = ROUTES.find(r => r.value === m.route)?.label || m.route;
             return el("div", { className: "entry-item" },
               el("div", { className: "entry-icon" }, m.skipped ? "🚫" : "💊"),
               el("div", { style: { flex: 1 } },
-                el("div", { className: "entry-name", style: { textDecoration: m.skipped ? "line-through" : "none" } }, m.name),
-                el("div", { className: "entry-sub" }, `${m.dose || ""} ${m.unit || ""} · ${ROUTES.find(r => r.value === m.route)?.label || m.route}`.trim()),
+                el("div", { className: "entry-name", style: { textDecoration: m.skipped ? "line-through" : "none" } }, title),
+                el("div", { className: "entry-sub" }, routeLabel),
               ),
               isPending
                 ? el("div", { style: { display: "flex", gap: "6px", alignItems: "center", marginLeft: "auto" } },
@@ -1953,7 +1959,7 @@ class HomeSickCard extends HTMLElement {
       for (const m of p.medications || []) names.add(m.name);
     }
     if (names.size === 0) {
-      ["Paracetamol 500mg", "Paracetamol 1g", "Ibuprofen 400mg", "Nasal spray"].forEach(n => names.add(n));
+      ["Paracetamol", "Ibuprofen", "Nasal spray"].forEach(n => names.add(n));
     }
     return [...names];
   }
