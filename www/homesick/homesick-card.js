@@ -1252,7 +1252,7 @@ class HomeSickCard extends HTMLElement {
         el("div", { className: "sj-title" }, "🌡 HomeSick"),
         el("div", { className: "sj-subtitle" }, today),
       ),
-      el("button", { className: "btn btn-ghost", onClick: () => this._openAdmin() }, "⚙ Manage"),
+      el("button", { className: "btn btn-ghost", onClick: () => this._openAdmin() }, "⚙ Settings"),
     );
 
     const scroll = el("div", { className: "sj-scroll" });
@@ -1264,7 +1264,7 @@ class HomeSickCard extends HTMLElement {
       scroll.appendChild(el("div", { style: { textAlign: "center", color: "var(--muted)", padding: "40px 0" } },
         el("div", { style: { fontSize: "40px", marginBottom: "12px" } }, "🩺"),
         el("div", {}, "No people added yet."),
-        el("div", { style: { fontSize: "12px", marginTop: "6px" } }, "Click ⚙ Manage to add a person."),
+        el("div", { style: { fontSize: "12px", marginTop: "6px" } }, "Click ⚙ Settings to add a person."),
       ));
     } else {
       scroll.appendChild(el("div", { className: "section-label", style: { marginBottom: "4px" } }, "Family members"));
