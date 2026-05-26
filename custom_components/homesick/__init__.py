@@ -14,6 +14,7 @@ Lifecycle:
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 from dataclasses import dataclass
@@ -261,11 +262,9 @@ async def _async_ensure_frontend(hass: HomeAssistant) -> None:
 
 async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
     """Add the custom card JS to Lovelace resources, replacing any stale version."""
-    import json, pathlib
-    _manifest = json.loads(
-        (pathlib.Path(__file__).parent / "manifest.json").read_text()
-    )
-    card_version = _manifest.get("version", "1")
+    manifest_path = Path(__file__).parent / "manifest.json"
+    manifest_text = await hass.async_add_executor_job(manifest_path.read_text)
+    card_version = json.loads(manifest_text).get("version", "1")
     base = "/local/homesick/homesick-card.js"
     url = f"{base}?v={card_version}"
     try:
