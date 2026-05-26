@@ -167,6 +167,10 @@ SET_REMINDERS_ENABLED_SCHEMA = vol.Schema({
     vol.Required("enabled"): cv.boolean,
 })
 
+DELETE_MED_CATALOG_ENTRY_SCHEMA = vol.Schema({
+    vol.Required("medicine_name"): cv.string,
+})
+
 
 # ── Registration ─────────────────────────────────────────────────────────────
 
@@ -419,6 +423,16 @@ async def async_register_services(
         elif not enabled and engine:
             await engine.async_teardown()
 
+    async def handle_delete_med_catalog_entry(call: ServiceCall) -> None:
+        name = call.data["medicine_name"]
+        removed = await store.async_delete_med_catalog_entry(name)
+        if removed:
+            _LOGGER.info("Removed '%s' from medication catalog", name)
+        else:
+            _LOGGER.debug(
+                "delete_med_catalog_entry: '%s' not in catalog (no-op)", name
+            )
+
     hass.services.async_register(
         DOMAIN, "log_measurement", handle_log_measurement, schema=LOG_MEASUREMENT_SCHEMA
     )
@@ -465,8 +479,12 @@ async def async_register_services(
         DOMAIN, "set_reminders_enabled", handle_set_reminders_enabled,
         schema=SET_REMINDERS_ENABLED_SCHEMA,
     )
+    hass.services.async_register(
+        DOMAIN, "delete_med_catalog_entry", handle_delete_med_catalog_entry,
+        schema=DELETE_MED_CATALOG_ENTRY_SCHEMA,
+    )
 
-    _LOGGER.debug("HomeSick: registered 15 services")
+    _LOGGER.debug("HomeSick: registered 16 services")
 
 
 def _format_summary(summary: dict[str, Any]) -> str:
