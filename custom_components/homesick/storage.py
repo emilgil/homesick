@@ -610,3 +610,14 @@ class HomeSickStore:
             entry["default_unit"] = unit or "mg"
         catalog[key] = entry
         await self.async_save(data)
+
+    async def async_delete_med_catalog_entry(self, name: str) -> bool:
+        """Remove a medication from the global catalog. Returns True if found and removed."""
+        data = await self.async_load()
+        catalog = data.setdefault("med_catalog", {})
+        key = name.strip().lower()
+        if key not in catalog:
+            return False
+        del catalog[key]
+        await self.async_save(data)
+        return True
