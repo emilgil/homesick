@@ -656,6 +656,7 @@ class HomeSickCard extends HTMLElement {
       medCatalog: [],       // [{ name, default_dose, default_unit }] — global catalog
       medCatalogLoaded: false,
       deleteScheduleConfirm: null, // medicine_name of a schedule pending delete confirmation
+      deleteConfirmCatalogName: null, // catalog entry pending remove confirmation
       medDraft: this._freshMedDraft(), // medication-form input; survives re-renders
     };
     this._toast = null;
@@ -2086,10 +2087,13 @@ class HomeSickCard extends HTMLElement {
     const topbar = el("div", { className: "sj-topbar" },
       el("button", { className: "btn-back", onClick: () => this._goHome() }, "←"),
       el("div", {},
-        el("div", { className: "sj-title" }, "⚙ Manage people"),
-        el("div", { className: "sj-subtitle" }, `${this._state.persons.length} people`),
+        el("div", { className: "sj-title" }, "⚙ Settings"),
       ),
     );
+
+    if (!this._state.medCatalogLoaded) {
+      this._fetchMedCatalog().then(() => this._render());
+    }
 
     const scroll = el("div", { className: "sj-scroll" });
 
@@ -2213,6 +2217,52 @@ class HomeSickCard extends HTMLElement {
         }, el("div", { className: "lbl-tog-knob" })),
         el("span", { style: { fontSize: "13px", color: isImperial() ? "var(--text)" : "var(--muted)" } }, "Imperial"),
       ),
+    ));
+
+    // Medication catalog
+    const catalog = [...this._state.medCatalog].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "")
+    );
+    scroll.appendChild(el("div", { className: "card" },
+      el("div", { className: "card-title" }, "💊 Medications"),
+      catalog.length === 0
+        ? el("div", { style: { color: "var(--muted)", fontSize: "13px" } },
+            this._state.medCatalogLoaded ? "No medications saved yet." : "Loading…")
+        : el("div", {}, ...catalog.map(entry => {
+            const isPending = this._state.deleteConfirmCatalogName === entry.name;
+            const doseText = `${entry.default_dose ?? ""} ${entry.default_unit ?? ""}`.trim();
+            const title = doseText ? `${entry.name} · ${doseText}` : entry.name;
+            return el("div", { className: "entry-item" },
+              el("div", { className: "entry-icon" }, "💊"),
+              el("div", { style: { flex: 1 } },
+                el("div", { className: "entry-name" }, title),
+              ),
+              isPending
+                ? el("div", { style: { display: "flex", gap: "6px", alignItems: "center", marginLeft: "auto" } },
+                    el("button", { className: "btn",
+                      style: { background: "var(--red)", color: "white", padding: "4px 10px", fontSize: "12px" },
+                      onClick: async () => {
+                        const name = entry.name;
+                        this._state.deleteConfirmCatalogName = null;
+                        await this._hass.callService(DOMAIN, "delete_med_catalog_entry", { name });
+                        this._state.medCatalog = this._state.medCatalog.filter(e => e.name !== name);
+                        this._showToast(`${name} removed`);
+                        this._render();
+                      }
+                    }, "Confirm"),
+                    el("button", { className: "btn btn-ghost",
+                      style: { padding: "4px 10px", fontSize: "12px" },
+                      onClick: () => { this._state.deleteConfirmCatalogName = null; this._render(); }
+                    }, "Cancel"),
+                  )
+                : el("button", { className: "btn btn-ghost",
+                    style: { padding: "4px 10px", fontSize: "12px", color: "var(--red)" },
+                    onClick: () => { this._state.deleteConfirmCatalogName = entry.name; this._render(); }
+                  }, "Remove"),
+            );
+          })),
+      el("div", { style: { fontSize: "12px", color: "var(--muted)", marginTop: "8px" } },
+        "Removing a medication clears its saved default dose. Logged history is kept."),
     ));
 
     // Reminder masterswitch
