@@ -2244,7 +2244,7 @@ class HomeSickCard extends HTMLElement {
                       onClick: async () => {
                         const name = entry.name;
                         this._state.deleteConfirmCatalogName = null;
-                        await this._hass.callService(DOMAIN, "delete_med_catalog_entry", { name });
+                        await this._hass.callService(DOMAIN, "delete_med_catalog_entry", { medicine_name: name });
                         this._state.medCatalog = this._state.medCatalog.filter(e => e.name !== name);
                         this._showToast(`${name} removed`);
                         this._render();
